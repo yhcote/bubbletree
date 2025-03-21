@@ -7,6 +7,7 @@ package root
 import (
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"example/models/configurator"
@@ -217,16 +218,51 @@ func (m Model) View() string {
 // UpdateNodeModels routes a tea.Msg to all registered child component
 // models. Each component's Update() routine is called with 'msg'.
 func (m Model) UpdateNodeModels(msg tea.Msg) (bubbletree.RootModel, tea.Cmd) {
+	const modelCount = 7 // make sure this counts the number of models
 	var (
-		cmd  tea.Cmd
-		cmds []tea.Cmd
+		cmds  []tea.Cmd
+		wg    sync.WaitGroup
+		mchan = make(chan bubbletree.CommonModel, modelCount)
+		cchan = make(chan tea.Cmd, modelCount)
 	)
 
-	m.configuratorModel, cmd = m.configuratorModel.Update(msg)
-	cmds = append(cmds, cmd)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		model, cmd := m.configuratorModel.Update(msg)
+		cchan <- cmd
+		mchan <- model
+	}()
 
-	m.coreappModel, cmd = m.coreappModel.Update(msg)
-	cmds = append(cmds, cmd)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		model, cmd := m.coreappModel.Update(msg)
+		cchan <- cmd
+		mchan <- model
+	}()
+
+	// Wait for all goroutines, then close all channels while the main function,
+	// just below, collects data.
+	go func() {
+		wg.Wait()
+		close(mchan)
+		close(cchan)
+	}()
+
+	for cmd := range cchan {
+		cmds = append(cmds, cmd)
+	}
+	for model := range mchan {
+		switch model.GetModelID() {
+		case m.configuratorModel.GetModelID():
+			m.configuratorModel = model.(bubbletree.LeafModel)
+		case m.coreappModel.GetModelID():
+			m.coreappModel = model.(bubbletree.BranchModel)
+		default:
+			panic("unexpected Update() returned model type")
+		}
+	}
 
 	return m, tea.Batch(cmds...)
 }

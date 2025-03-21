@@ -129,6 +129,11 @@ func (m Model) Update(msg tea.Msg) (bubbletree.BranchModel, tea.Cmd) {
 		}
 	}
 
+	// Propagate current message to child models, so they call Update(msg).
+	rm, cmd := m.UpdateNodeModels(msg)
+	m = rm.(Model)
+	cmds = append(cmds, cmd)
+
 	return m, tea.Batch(cmds...)
 }
 

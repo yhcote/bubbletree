@@ -18,15 +18,9 @@ import (
 // definitions.
 var (
 	// Styles
-	headerStyle = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder(), true).
-			Padding(0, 1)
-	footerStyle = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder(), true).
-			Padding(0, 1)
-	contentStyle = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder(), true).
-			Align(lipgloss.Left, lipgloss.Center)
+	headerStyle  = lipgloss.NewStyle()
+	footerStyle  = lipgloss.NewStyle()
+	contentStyle = lipgloss.NewStyle()
 )
 
 func renderBaseView(w, h int) string {
@@ -34,21 +28,21 @@ func renderBaseView(w, h int) string {
 	header := renderShareHeight(headerStyle, w, &h, "No Active Workflows")
 	footer := renderShareHeight(footerStyle, w, &h, version)
 	content := renderFillHeight(contentStyle, w, &h, "")
-	return lipgloss.JoinVertical(lipgloss.Top, header, content, footer)
+	return lipgloss.JoinVertical(lipgloss.Left, header, content, footer)
 }
 
 func renderConfigView(model bubbletree.CommonModel, w, h int) string {
 	header := renderShareHeight(headerStyle, w, &h, model.GetViewHeader())
 	footer := renderShareHeight(footerStyle, w, &h, model.GetViewFooter())
-	content := renderFillHeight(contentStyle, w, &h, model.View(areaSize(contentStyle, w, &h)))
-	return lipgloss.JoinVertical(lipgloss.Top, header, content, footer)
+	content := renderFillHeight(contentStyle.Align(lipgloss.Center, lipgloss.Center), w, &h, model.View(areaSize(contentStyle, w, &h)))
+	return lipgloss.JoinVertical(lipgloss.Left, header, content, footer)
 }
 
 func renderCoreAppView(model bubbletree.CommonModel, w, h int) string {
 	header := renderShareHeight(headerStyle, w, &h, model.GetViewHeader())
 	footer := renderShareHeight(footerStyle, w, &h, model.GetViewFooter())
 	content := renderFillHeight(contentStyle, w, &h, model.View(areaSize(contentStyle, w, &h)))
-	return lipgloss.JoinVertical(lipgloss.Top, header, content, footer)
+	return lipgloss.JoinVertical(lipgloss.Left, header, content, footer)
 }
 
 func renderQuittingView(err error, w, h int) string {
@@ -60,7 +54,7 @@ func renderQuittingView(err error, w, h int) string {
 	} else {
 		content = renderFillHeight(contentStyle, w, &h, "\n  See you later!")
 	}
-	return lipgloss.JoinVertical(lipgloss.Top, header, content, footer)
+	return lipgloss.JoinVertical(lipgloss.Left, header, content, footer)
 }
 
 func renderShareHeight(s lipgloss.Style, w int, h *int, strs ...string) string {

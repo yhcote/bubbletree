@@ -1,5 +1,5 @@
-/app.info
-/tests.out
-/app
-/app-debug.*
-/app.*
+/example/app.info
+/example/tests.out
+/example/app
+/example/app-debug.*
+/example/app.*

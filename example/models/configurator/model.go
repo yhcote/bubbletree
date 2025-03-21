@@ -161,11 +161,13 @@ func (m Model) Update(msg tea.Msg) (bubbletree.LeafModel, tea.Cmd) {
 func (m Model) View(w, h int) string {
 	if m.IsFocused() && m.IsActive() {
 		m.form.WithWidth(w - 2)
-		return lipgloss.NewStyle().Margin(0, 1).
-			Render(strings.TrimSuffix(m.form.View(), "\n\n"))
+		return viewStyle.Render(strings.TrimSuffix(m.form.View(), "\n\n"))
 	}
 	return ""
 }
+
+// The general style of the finished view, before returning uptree.
+var viewStyle = lipgloss.NewStyle().Margin(1)
 
 // GetViewHeader returns the model's header view string.
 func (m Model) GetViewHeader() string {
