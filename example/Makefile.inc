@@ -66,9 +66,10 @@ devel::
 	)
 
 info:
-	@printf '\e[38;5;23m  GO_BIN\e[m        `%s`\n' "$(shell which go) ($(shell go env GOVERSION))"
-	@printf '\e[38;5;23m  GCC_BIN\e[m       `%s`\n' "$(shell which gcc)"
-	@printf '\e[38;5;23m  GOWORK\e[m        `%s`\n' "$(shell go env GOWORK)"
+	@printf '\e[38;5;23m  GO_BIN\e[m        `%s`\n' "$(shell which $(GO)) ($(shell $(GO) env GOVERSION))"
+	@printf '\e[38;5;23m  GCC_BIN\e[m       `%s`\n' "$(shell which gcc) ($(shell gcc -dumpfullversion))"
+	@printf '\e[38;5;23m  GOLINT_BIN\e[m    `%s`\n' "$(shell which $(GOLINT))"
+	@printf '\e[38;5;23m  GOWORK\e[m        `%s`\n' "$(shell $(GO) env GOWORK)"
 	@printf '\n'
 
 install::
