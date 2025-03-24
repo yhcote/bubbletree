@@ -2,8 +2,6 @@ module example
 
 go 1.23.4
 
-replace github.com/yhcote/bubbletree => ../
-
 require (
 	github.com/charmbracelet/bubbletea v1.3.4
 	github.com/charmbracelet/huh v0.6.0
@@ -13,7 +11,7 @@ require (
 	github.com/muesli/termenv v0.16.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.0
-	github.com/yhcote/bubbletree v0.0.0-00010101000000-000000000000
+	github.com/yhcote/bubbletree v0.0.0-20250324151607-929aca8c0692
 )
 
 require (
@@ -21,10 +19,10 @@ require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/catppuccin/go v0.3.0 // indirect
 	github.com/charmbracelet/bubbles v0.20.0 // indirect
-	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
+	github.com/charmbracelet/colorprofile v0.2.3-0.20250317141405-06f135bea2c0 // indirect
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
-	github.com/charmbracelet/x/exp/strings v0.0.0-20250317102001-c803e5cafd0b // indirect
+	github.com/charmbracelet/x/exp/strings v0.0.0-20250324105510-c72bdbf70572 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
