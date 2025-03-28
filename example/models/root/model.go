@@ -218,7 +218,7 @@ func (m Model) View() string {
 // UpdateNodeModels routes a tea.Msg to all registered child component
 // models. Each component's Update() routine is called with 'msg'.
 func (m Model) UpdateNodeModels(msg tea.Msg) (bubbletree.RootModel, tea.Cmd) {
-	const modelCount = 7 // make sure this counts the number of models
+	const modelCount = 2 // make sure this counts the number of models
 	var (
 		cmds  []tea.Cmd
 		wg    sync.WaitGroup
