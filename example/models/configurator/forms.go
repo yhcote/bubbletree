@@ -85,7 +85,7 @@ func newForm(viper *viper.Viper) *huh.Form {
 				Title("Save new config?").
 				Validate(func(v bool) error {
 					if !v {
-						return fmt.Errorf("Continue with changes...") //lint:ignore ST1005 this is a UI
+						return fmt.Errorf("Continue with changes...") //nolint:staticcheck
 					}
 					return nil
 				}).
@@ -97,7 +97,7 @@ func newForm(viper *viper.Viper) *huh.Form {
 // fieldValidation checks that a text field has been filled.
 func fieldValidation(v string) error {
 	if v == "" {
-		return fmt.Errorf("Field cannot be empty") //lint:ignore ST1005 this is a UI
+		return fmt.Errorf("Field cannot be empty") //nolint:staticcheck
 	}
 	return nil
 }

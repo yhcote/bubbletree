@@ -39,7 +39,7 @@ version   ?= \
 		) | sed -e "s/^v//;s/-/_/g;s/_/-/;s/_/./g"\
 	)
 
-all:: info devel lint test
+all:: info devel test lint
 
 clean::
 	@printf '\e[38;5;202m  CLEAN\e[m\n'
@@ -58,11 +58,11 @@ devel::
 	$(V)if test "$(shell $(GO) env GOWORK)" != "off"; then printf '\e[38;5;192m%s\e[m\n' "*** GO WORKSPACE ENABLED: release builds may fail (or vice versa)"; fi
 	$(V)$(foreach p,$(programs), \
 		printf '\e[38;5;202m  BUILD\e[m         %s\n' "$(p) -> $(p).$(version)" && \
-		GOOS=$(os) GOARCH=$(arch) $(GO) build -tags osusergo,netgo -ldflags "-s -X $(module)/internal.ProgramVersion=$(version)" -o $(p).$(version) ./cmd/$(p); \
+		GOOS=$(os) GOARCH=$(arch) $(GO) build -ldflags "-s -X $(module)/internal.ProgramVersion=$(version)" -o $(p).$(version) ./cmd/$(p); \
 	)
 	$(V)$(foreach p,$(programs), \
 		printf '\e[38;5;202m  BUILD (DBG) \e[m  %s\n' "$(p) -> $(p)-debug.$(version)" && \
-		GOOS=$(os) GOARCH=$(arch) $(GO) build -tags osusergo,netgo -ldflags "-X $(module)/internal.ProgramVersion=$(version)" -race -gcflags='all=-N -l' -o $(p)-debug.$(version) ./cmd/$(p); \
+		GOOS=$(os) GOARCH=$(arch) $(GO) build -ldflags "-X $(module)/internal.ProgramVersion=$(version)" -race -gcflags='all=-N -l' -o $(p)-debug.$(version) ./cmd/$(p); \
 	)
 
 info:
@@ -80,20 +80,18 @@ install::
 	)
 
 lint::
-	@printf '\e[38;5;202m  VET\e[m           %s\n' "$(project)"
-	$(V)$(GO) vet ./...
-	@printf '\e[38;5;202m  LINT\e[m          %s\n' "$(project)"
-	$(V)$(GOLINT) run --exclude-dirs grpcssh ./...
+	@printf '\e[38;5;202m  LINT\e[m          %s' "$(project) -> "
+	$(V)$(GOLINT) run
 
 release::
 	$(V)$(foreach p,$(programs), \
 		printf '\e[38;5;202m  BUILD (REL)\e[m   %s\n' "$(p)" && \
-		GOOS=$(os) GOARCH=$(arch) GOWORK=off $(GO) build -tags release,osusergo,netgo -ldflags "-s -X $(module)/internal.ProgramVersion=$(version)" -o $(p) ./cmd/$(p); \
+		GOOS=$(os) GOARCH=$(arch) GOWORK=off $(GO) build -tags release -ldflags "-s -X $(module)/internal.ProgramVersion=$(version)" -o $(p) ./cmd/$(p); \
 	)
-	$(V)$(MAKE) lint
 	@printf '\e[38;5;202m  TEST\e[m          %s\n' "$(project)"
-	$(V)GOOS=$(os) GOARCH=$(arch) GOWORK=off $(GO) test -tags release,osusergo,netgo -ldflags "-s -X $(module)/internal.ProgramVersion=$(version)" ./... >$(testout) || \
+	$(V)GOOS=$(os) GOARCH=$(arch) GOWORK=off $(GO) test -tags release -ldflags "-s -X $(module)/internal.ProgramVersion=$(version)" ./... >$(testout) || \
 		(grep -v -e "^\?" -e "^ok" -e "^FAIL" $(testout) && exit 2)
+	$(V)$(MAKE) lint
 	@printf '\e[38;5;202m  INFO\e[m          %s\n' "$(project)"
 	@:> $(project).info
 	$(V)$(foreach p,$(programs), \
@@ -103,11 +101,11 @@ release::
 
 scrub::
 	@printf '\e[38;5;202m  SCRUB\e[m\n'
-	$(V)git clean -d -f -x
+	$(V)git clean -d -f -X
 
 test::
 	@printf '\e[38;5;202m  TEST\e[m          %s\n' "$(project)"
-	$(V)GOOS=$(os) GOARCH=$(arch) $(GO) test -tags osusergo,netgo -ldflags "-s -X $(module)/internal.ProgramVersion=$(version)" ./... >$(testout) || \
+	$(V)GOOS=$(os) GOARCH=$(arch) $(GO) test -ldflags "-s -X $(module)/internal.ProgramVersion=$(version)" ./... >$(testout) || \
 		(grep -v -e "^\?" -e "^ok" -e "^FAIL" $(testout) && exit 2)
 
 version::

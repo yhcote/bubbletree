@@ -157,7 +157,8 @@ func (m Model) GetViewFooter() string {
 	return ""
 }
 
-// UpdateNodeModels
+// UpdateNodeModels routes a tea.Msg to all registered child component
+// models. Each component's Update() routine is called with 'msg'.
 func (m Model) UpdateNodeModels(msg tea.Msg) (bubbletree.BranchModel, tea.Cmd) {
 	return m, nil
 }

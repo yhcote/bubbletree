@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"example/internal"
 	"example/models/configurator"
 	"example/models/coreapp"
 
@@ -111,6 +112,7 @@ type timing struct {
 func (m Model) Init() tea.Cmd {
 	// Start the application in configuration state
 	return tea.Batch(
+		tea.SetWindowTitle(fmt.Sprintf("%s  ver: %s", internal.ProgramName, internal.ProgramVersion)),
 		m.configuratorModel.Init(),
 		m.coreappModel.Init(),
 		bubbletree.SetFocusCmd(m.configuratorModel.GetModelID()),

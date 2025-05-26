@@ -114,7 +114,7 @@ func initConfig() {
 				fmt.Printf("Could not create empty config file, file=%v, error=%v\n", configFile, err)
 				os.Exit(2)
 			}
-			f.Close()
+			_ = f.Close()
 		} else if reconf {
 			_ = os.Truncate(configFile, 0)
 		}
