@@ -5,8 +5,6 @@
 package bubbletree
 
 import (
-	"fmt"
-
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -48,13 +46,13 @@ func (m DefaultLeafModel) Update(msg tea.Msg) (LeafModel, tea.Cmd) {
 	case SetDisabledMsg:
 		if msg.IsRecipient(m.GetModelID()) {
 			if !m.IsDisabled() {
-				m.Properties |= Disabled
-				m.Logger.Info("property change on message", "Msg", fmt.Sprintf("%T%+v", msg, msg), "Adding Disabled", m.GetModelID())
+				old, new := m.Properties.SetDisabled()
+				m.LogPropertyChange(msg, old, new)
 			}
 		} else {
 			if m.IsDisabled() {
-				m.Properties &= ^Disabled
-				m.Logger.Info("property change on message", "Msg", fmt.Sprintf("%T%+v", msg, msg), "Removing Disabled", m.GetModelID())
+				old, new := m.Properties.UnsetDisabled()
+				m.LogPropertyChange(msg, old, new)
 			}
 		}
 
@@ -62,13 +60,13 @@ func (m DefaultLeafModel) Update(msg tea.Msg) (LeafModel, tea.Cmd) {
 	case SetFocusMsg:
 		if msg.IsRecipient(m.GetModelID()) {
 			if !m.IsFocused() {
-				m.Properties |= Focused
-				m.Logger.Info("property change on message", "Msg", fmt.Sprintf("%T%+v", msg, msg), "Adding Focus", m.GetModelID())
+				old, new := m.Properties.SetFocused()
+				m.LogPropertyChange(msg, old, new)
 			}
 		} else {
 			if m.IsFocused() {
-				m.Properties &= ^Focused
-				m.Logger.Info("property change on message", "Msg", fmt.Sprintf("%T%+v", msg, msg), "Losing Focus", m.GetModelID())
+				old, new := m.Properties.UnsetFocused()
+				m.LogPropertyChange(msg, old, new)
 			}
 		}
 
@@ -76,18 +74,18 @@ func (m DefaultLeafModel) Update(msg tea.Msg) (LeafModel, tea.Cmd) {
 	case ShutDownMsg:
 		if msg.IsRecipient(m.GetModelID()) && !m.IsShuttingDown() {
 			m.State = ShuttingDownState
+			m.LogStateChange(msg)
+
 			m.CancelContext()
 			cmds = append(cmds, ModelFinishedCmd(m.GetModelID()))
-			m.Logger.Info("model state change on message", "Msg", fmt.Sprintf("%T%+v", msg, msg), "ModelID", m.GetModelID(),
-				"NewState", m.State)
+			m.LogAction(msg, "Requesting model finished")
 		}
 
 	// ModelFinishedMsg marks the end-of-life for the model instance.
 	case ModelFinishedMsg:
 		if msg.IsRecipient(m.GetModelID()) && !m.IsFinished() {
 			m.State = FinishedState
-			m.Logger.Info("model state change on message", "Msg", fmt.Sprintf("%T%+v", msg, msg), "ModelID", m.GetModelID(),
-				"NewState", m.State)
+			m.LogStateChange(msg)
 		}
 	}
 

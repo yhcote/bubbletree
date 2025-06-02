@@ -6,6 +6,7 @@ package bubbletree
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -77,6 +78,9 @@ func (m DefaultCommonModel) Init() tea.Cmd {
 // actual terminal window size if the root model communicates it as being the
 // case.
 func (m DefaultCommonModel) View(w, h int) string {
+	if m.IsFocused() && m.IsActive() {
+		return "Application Running..."
+	}
 	return ""
 }
 
@@ -85,7 +89,10 @@ func (m DefaultCommonModel) View(w, h int) string {
 // section of the final composed UI window. This should be a short string or
 // a unicode icon.
 func (m DefaultCommonModel) GetViewHeader() string {
-	return "Application's header notes / menus"
+	if m.IsFocused() && m.IsActive() {
+		return "Application's header notes / menus"
+	}
+	return ""
 }
 
 // GetViewFooter is the default implementation of the CommonModel interface.
@@ -93,14 +100,17 @@ func (m DefaultCommonModel) GetViewHeader() string {
 // section of the final composed UI window. This should be a short string or
 // a unicode icon.
 func (m DefaultCommonModel) GetViewFooter() string {
-	return "Application's footer notes / menus"
+	if m.IsFocused() && m.IsActive() {
+		return "Application's footer notes / menus"
+	}
+	return ""
 }
 
 // CancelContext is the default implementation of the CommonModel interface.
 // It is used to explicitely cancel the model's instance context.
 func (m DefaultCommonModel) CancelContext() {
-	m.Logger.Info("Cancelling model's context")
 	if m.Cancel != nil {
+		m.Logger.Info("Cancelling model's context")
 		m.Cancel()
 	} else {
 		m.Logger.Warn("The model's cancel function is unexpectedly nil, context cannot be cancelled.")
@@ -175,6 +185,39 @@ func (m DefaultCommonModel) IsFocused() bool {
 	return m.Properties&Focused != 0
 }
 
+// LogStateChange sends a standardized log entry after a model state change.
+func (m DefaultCommonModel) LogStateChange(msg any) {
+	m.Logger.Info("Model Update Notification",
+		"ModelID", m.GetModelID(),
+		"NewState", m.State,
+		"OnMsg", fmt.Sprintf("%T", msg))
+}
+
+// LogAction sends a standardized log entry after a new queued tea.Cmd.
+func (m DefaultCommonModel) LogAction(msg any, action string) {
+	m.Logger.Info("Model Update Notification",
+		"ModelID", m.GetModelID(),
+		"Action", action,
+		"OnMsg", fmt.Sprintf("%T", msg))
+}
+
+// LogPropertyChange sends a standardized log entry after a model property
+// change.
+func (m DefaultCommonModel) LogPropertyChange(msg any, old, new Properties) {
+	m.Logger.Info("Model Update Notification",
+		"ModelID", m.GetModelID(),
+		"Properties", fmt.Sprintf("%v -> %v", old, new),
+		"OnMsg", fmt.Sprintf("%T", msg))
+}
+
+// LogNotice sends a standardized log entry of a notification.
+func (m DefaultCommonModel) LogNotice(msg any, notice string) {
+	m.Logger.Info("Model Update Notification",
+		"ModelID", m.GetModelID(),
+		"Notice", notice,
+		"OnMsg", fmt.Sprintf("%T", msg))
+}
+
 // The possible bubble tree model states
 const (
 	InactiveState State = iota
@@ -210,6 +253,9 @@ type Properties int
 
 func (p Properties) String() string {
 	var props []string
+	if p == 0 {
+		return "NONE"
+	}
 	if p&Disabled != 0 {
 		props = append(props, "DISABLED")
 	}
@@ -217,6 +263,34 @@ func (p Properties) String() string {
 		props = append(props, "FOCUSED")
 	}
 	return strings.Join(props, "|")
+}
+
+// SetDisabled sets the Disabled model property.
+func (p *Properties) SetDisabled() (old, new Properties) {
+	old = *p
+	*p |= Disabled
+	return old, *p
+}
+
+// UnsetDisabled unsets the Disabled model property.
+func (p *Properties) UnsetDisabled() (old, new Properties) {
+	old = *p
+	*p &= ^Disabled
+	return old, *p
+}
+
+// SetFocused sets the Focused model property.
+func (p *Properties) SetFocused() (old, new Properties) {
+	old = *p
+	*p |= Focused
+	return old, *p
+}
+
+// UnsetFocused unsets the Focused model property.
+func (p *Properties) UnsetFocused() (old, new Properties) {
+	old = *p
+	*p &= ^Focused
+	return old, *p
 }
 
 // Msg/Cmd's

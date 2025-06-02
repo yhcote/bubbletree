@@ -31,6 +31,9 @@ type RootModel interface {
 	// that the root model has registered. It also gathers the child models new
 	// commands generated and returns them.
 	UpdateNodeModels(msg tea.Msg) tea.Cmd
+
+	// LastError returns the last error saved in the model instance.
+	LastError() error
 }
 
 // DefaultRootModel implements default methods for the RootModel interface.
@@ -38,6 +41,9 @@ type RootModel interface {
 // The implementor of the RootModel interface may overwrite the default
 // behavior of the model by reimplementing desired methods.
 type DefaultRootModel struct {
+	// The last error recorded in the model.
+	Err error
+
 	// The <ModelID, *Model> map of all registered descendant models.
 	Models *sync.Map
 }
@@ -100,4 +106,9 @@ func (m DefaultRootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View is the default implementation of the RootModel interface.
 func (m DefaultRootModel) View() string {
 	return ""
+}
+
+// LastError returns the last error recorded by the root model.
+func (m DefaultRootModel) LastError() error {
+	return m.Err
 }
