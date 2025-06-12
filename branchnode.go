@@ -5,6 +5,7 @@
 package bubbletree
 
 import (
+	"fmt"
 	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -147,4 +148,27 @@ func (m DefaultBranchModel) UpdateNodeModels(msg tea.Msg) tea.Cmd {
 	}
 
 	return tea.Batch(cmds...)
+}
+
+// LinkNewModel takes a new descendant model and updates the model ID saved
+// by the model for later reference in addition to adding that new model to a
+// map of descendant models.
+func (m DefaultBranchModel) LinkNewModel(model CommonModel, modelID *string) {
+	*modelID = model.GetModelID()
+	m.Models.Store(model.GetModelID(), model)
+}
+
+// MustGetModel returns a model identified by the parameter modelID from the
+// linked model sync.Map. The function will panic if the model cannot be found
+// or if the found object doesn't implement the 'CommonModel' interface.
+func (m DefaultBranchModel) MustGetModel(modelID string) CommonModel {
+	if model, ok := m.Models.Load(modelID); !ok {
+		panic(fmt.Sprintf("cannot load '%s' model from map", modelID))
+	} else {
+		if model, ok := any(model).(CommonModel); !ok {
+			panic(fmt.Sprintf("loaded '%s' model doesn't implement CommonModel", modelID))
+		} else {
+			return model
+		}
+	}
 }

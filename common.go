@@ -218,6 +218,8 @@ func (m DefaultCommonModel) LogNotice(msg any, notice string) {
 		"OnMsg", fmt.Sprintf("%T", msg))
 }
 
+
+
 // The possible bubble tree model states
 const (
 	InactiveState State = iota
