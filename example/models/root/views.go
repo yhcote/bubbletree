@@ -7,7 +7,7 @@ package root
 import (
 	"fmt"
 
-	"example/internal"
+	"example/internal/app"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/yhcote/bubbletree"
@@ -24,7 +24,7 @@ var (
 )
 
 func renderBaseView(w, h int) string {
-	version := fmt.Sprintf("%v %v", internal.ProgramName, internal.ProgramVersion)
+	version := fmt.Sprintf("%v %v", app.ProgramName, app.ProgramVersion)
 	header := renderShareHeight(headerStyle, w, &h, "No Active Workflows")
 	footer := renderShareHeight(footerStyle, w, &h, version)
 	content := renderFillHeight(contentStyle, w, &h, "")

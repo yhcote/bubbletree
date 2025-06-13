@@ -5,6 +5,8 @@
 package configurator
 
 import (
+	"example/internal/app"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/viper"
 )
@@ -14,7 +16,9 @@ import (
 type (
 	// ConfigReadyMsg is a model-global message sent when the model is
 	// done loading or creating the system config.
-	ConfigReadyMsg struct{}
+	ConfigReadyMsg struct {
+		Config app.Config
+	}
 
 	// ConfigMissingMsg is a model-global message sent when no configuration
 	// was found at default locations. In this case we prepare a user input
@@ -22,23 +26,25 @@ type (
 	ConfigMissingMsg struct{}
 )
 
-// getConfigCmd is responsible for loading an existing application configuration
-// file, if available, or to create a new one otherwise. The function calls
-// 'incompleteConfig()' returning if a config file is missing required
-// settings. This allows the model to capture missing settings even when a
-// config file is found but incomplete.
+// getConfigCmd is responsible for loading an existing application
+// configuration file, if available, or to create a new one otherwise. The
+// function calls 'isComplete()' returning whether a config file has all
+// required settings. This allows the model to capture missing settings even
+// when a config file is found but incomplete.
 func getConfigCmd(viper *viper.Viper) tea.Cmd {
 	return func() tea.Msg {
-		if incompleteConfig(viper) {
+		if config, complete := isComplete(viper); complete {
+			return ConfigReadyMsg{Config: config}
+		} else {
 			return ConfigMissingMsg{}
 		}
-		return ConfigReadyMsg{}
 	}
 }
 
 // configReadyCmd returns a model-global message when the system configuration
-// is ready. modelFinishedCmd is also batched in because this marks the end of
-// the model's execution.
-func configReadyCmd() tea.Msg {
-	return ConfigReadyMsg{}
+// is ready.
+func configReadyCmd(config app.Config) tea.Cmd {
+	return func() tea.Msg {
+		return ConfigReadyMsg{Config: config}
+	}
 }

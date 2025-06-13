@@ -5,82 +5,51 @@
 package configurator
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"example/internal/app"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/spf13/viper"
 	"github.com/yhcote/bubbletree"
 )
 
+// Form input config string variables. Those buffers the new configurations
+// entered by the user before the form is completed, validated, and added to
+// viper.
+var (
+	inputPlaceholder string
+)
+
 // newForm creates the input form needed to collect application required
 // configuration settings if those are missing.
-func newForm(viper *viper.Viper) *huh.Form {
-	if viper == nil {
-		log.Error("passed viper configs is 'nil'")
-		return nil
+func newForm(vpr *viper.Viper) (form *huh.Form) {
+	config, err := app.ViperToLocalConfig(vpr)
+	if err != nil {
+		return
 	}
 
-	// Get viper config values from existing config file.
-	name := viper.GetString(app.EmployeeName)
-	dob := viper.GetString(app.EmployeeDOB)
-	role := viper.GetString(app.EmployeeRole)
-	salary := viper.GetString(app.EmployeeSalary)
-	hiringDate := viper.GetString(app.EmployeeHiringDate)
-	passwd := viper.GetString(app.EmployeeAcctPasswd)
+	// When a config file was loaded and values exist use them, otherwise
+	// use defaults when available.
+	inputPlaceholder = config.Placeholder
 
-	// Apply defaults when no values came from the existing config file.
-	if role == "" {
-		role = app.DefaultRole
-	}
-	if passwd == "" {
-		passwd = app.DefaultPasswd
+	// Otherwise use defaults when available.
+	if inputPlaceholder == "" {
+		inputPlaceholder = app.DefaultPlaceholder
 	}
 
-	return huh.NewForm(
+	form = huh.NewForm(
 		huh.NewGroup(
 			huh.NewNote().
-				Title("Employee Configuration").
-				Description("Enter required fields below."),
-			huh.NewInput().Key(app.EmployeeName).
-				Title("Employee • Name").
-				Description("Name of the employee").
-				Value(&name).
-				Validate(fieldValidation),
-			huh.NewInput().Key(app.EmployeeDOB).
-				Title("Employee • DOB").
-				Description("Date Of Birth of the employee").
-				Value(&dob).
-				Validate(fieldValidation),
-			huh.NewInput().Key(app.EmployeeRole).
-				Title("Employee • Role").
-				Description("Role of the employee").
-				Value(&role).
-				Validate(fieldValidation),
-		),
-		huh.NewGroup(
-			huh.NewNote().
-				Title("Employee Configuration").
-				Description("Enter required fields below, (Cont.)."),
-			huh.NewInput().Key(app.EmployeeSalary).
-				Title("Employee • Salary").
-				Description("Salary of the employee").
-				Value(&salary).
-				Validate(fieldValidation),
-			huh.NewInput().Key(app.EmployeeHiringDate).
-				Title("Employee • Hiring Date").
-				Description("Hiring date of the employee").
-				Value(&hiringDate).
-				Validate(fieldValidation),
-			huh.NewInput().Key(app.EmployeeAcctPasswd).
-				Title("Employee • Account Password").
-				Description("Initial password of the employee's account").
-				Value(&passwd).
-				Validate(fieldValidation).
-				EchoMode(huh.EchoModePassword),
+				Title("Empty Configuration"),
+			huh.NewInput().
+				Title("General Config • Placeholder").
+				Description("An example config placeholder").
+				Value(&inputPlaceholder).
+				Validate(stringFieldValidation),
 			huh.NewConfirm().
 				Title("Save new config?").
 				Validate(func(v bool) error {
@@ -92,10 +61,11 @@ func newForm(viper *viper.Viper) *huh.Form {
 				Affirmative("Yes").Negative("No"),
 		),
 	).WithShowHelp(false).WithShowErrors(false)
+	return
 }
 
-// fieldValidation checks that a text field has been filled.
-func fieldValidation(v string) error {
+// stringFieldValidation checks that a text field has been filled.
+func stringFieldValidation(v string) error {
 	if v == "" {
 		return fmt.Errorf("Field cannot be empty") //nolint:staticcheck
 	}
@@ -117,29 +87,36 @@ func (m Model) updateForm(msg tea.Msg) (bubbletree.LeafModel, tea.Cmd) {
 	if m.form.State == huh.StateCompleted {
 		// We're done here, save form fields to viper configs and write down a new
 		// config version to disk.
-		for _, key := range app.AllConfigKeys {
-			m.Viper.Set(key, m.form.GetString(key))
+		config := app.Config{
+			Placeholder: inputPlaceholder,
 		}
 
-		if err := m.Viper.WriteConfig(); err != nil {
-			err = fmt.Errorf("while writing viper config file: %v", err)
+		jsonConfig, err := json.MarshalIndent(config, "", "    ")
+		if err != nil {
+			err = fmt.Errorf("while marshaling config to JSON: %w", err)
 			cmds = append(cmds, bubbletree.ErrCmd(err))
 		} else {
-			cmds = append(cmds, configReadyCmd)
+			m.Logger.Debug("JSON Config", "config", string(jsonConfig))
+			if err = os.WriteFile(m.Viper.ConfigFileUsed(), jsonConfig, 0644); err != nil {
+				err = fmt.Errorf("while writing JSON config to file: %w", err)
+				cmds = append(cmds, bubbletree.ErrCmd(err))
+			} else {
+				cmds = append(cmds, configReadyCmd(config))
+			}
 		}
-		log.Debug("Config", "all settings", spew.Sdump(m.Viper.AllSettings()))
 	}
 	return m, tea.Batch(cmds...)
 }
 
 // incompleteConfig returns whether the current config (new or read from
 // file), is missing application required values.
-func incompleteConfig(viper *viper.Viper) bool {
-	for _, key := range app.AllConfigKeys {
-		if viper.Get(key) == nil {
-			log.Warn("required setting not set", "setting", key)
-			return true
-		}
+func isComplete(vpr *viper.Viper) (config app.Config, complete bool) {
+	config, err := app.ViperToLocalConfig(vpr)
+	if err != nil {
+		return
 	}
-	return false
+	if config.Placeholder == "" {
+		return
+	}
+	return config, true
 }

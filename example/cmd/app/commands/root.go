@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"example/internal"
 	"example/internal/app"
 	"example/models/root"
 
@@ -17,55 +16,65 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/yhcote/bubbletree"
+	"github.com/yhcote/bubbletree/logger"
+)
+
+const (
+	progname = "app"
 )
 
 var (
-	// flags & viper config
-	reconf      bool
+	// program general config flags & viper related
+	configForce bool
 	configFile  string
-	viperConfig *viper.Viper
-
-	// base logger
-	log = app.DefaultLogger(!releaseBuild)
+	configViper *viper.Viper
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "app",
+	Use:   progname,
 	Short: "This is a bubble tea application template",
-	Long: `'app' is a base program template that can be use as a start to write large
+	Long: "'" + progname + "'" + ` is a base program template that can be use as a start to write large
 or complex bubble tea applications that fits the use of a model tree to
 modularize multiple components.
 
-For more information and a complete usage description, see app(1)
+For more information and a complete usage description, see ` + progname + `(1)
 manual page.`,
-	Version: internal.ProgramVersion,
+	Version: app.ProgramVersion,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		internal.ProgramName = cmd.Name()
+		app.ProgramName = cmd.Name()
 	},
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
-		log.Info("Starting", "program", internal.ProgramName, "version", internal.ProgramVersion)
-		fmt.Printf("Starting %v version %v, log file: %v, config file: %v\n",
-			internal.ProgramName, internal.ProgramVersion, app.GetLoggerOutputName(), viperConfig.ConfigFileUsed())
+		logger.Log().Info("Starting", "program", app.ProgramName, "version", app.ProgramVersion)
+		fmt.Printf("Starting %v version %v\n - log file:\t\t%v\n - config file:\t\t%v\n\n",
+			app.ProgramName, app.ProgramVersion, logger.GetLoggerOutputName(), configViper.ConfigFileUsed())
 
 		// Initialize App's base (root) model
-		m := root.New(
-			root.WithLogger(log),
-			root.WithViper(viperConfig),
+		m, err := root.New(
+			root.WithLogger(logger.Log()),
+			root.WithConfigViper(configViper),
 			root.WithSpewConfigState(&spew.ConfigState{MaxDepth: 1}),
 		)
-		// Run the bubble tea program with the new base model.
-		if _, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {
+		if err != nil {
+			cmd.SilenceUsage = true
 			return err
 		}
-
+		// Run the bubble tea program with the new base model.
+		if m, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {
+			cmd.SilenceUsage = true
+			return err
+		} else if m.(bubbletree.RootModel).LastError() != nil {
+			cmd.SilenceUsage = true
+			return m.(bubbletree.RootModel).LastError()
+		}
 		return nil
 	},
 
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		_ = app.CloseLoggerOutput()
+		_ = logger.CloseLoggerOutput()
 	},
 }
 
@@ -78,58 +87,60 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().BoolVar(&reconf, "reconf", false, "force running through the configuration")
-	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "config file (default is $HOME/.config/app/app.toml)")
+	logger.SetLoggerLevel(!releaseBuild)
+	cobra.OnInitialize(initConfigViper)
+
+	rootCmd.PersistentFlags().BoolVar(&configForce, "reconf", false, "force running through the configuration")
+	rootCmd.PersistentFlags().StringVar(&configFile, "config",
+		filepath.Join(filepath.Join(os.Getenv("HOME"), ".config", progname), progname+".json"),
+		"config file (default is $HOME/.config/"+progname+"/"+progname+".json)")
 }
 
-// initConfig reads in config file and ENV variables if set.
-func initConfig() {
-	viperConfig = viper.New()
+// initConfigViper reads in config file and ENV variables if set.
+func initConfigViper() {
+	configViper = viper.New()
+	configViper.SetConfigFile(configFile)
 
-	// use command line flag set config file, or load from default location
-	if configFile != "" {
-		// When asked to reconfigure, truncate the current config file if it exists.
-		if reconf {
-			_ = os.Truncate(configFile, 0)
-		}
-		viperConfig.SetConfigFile(configFile)
-	} else {
-		viperConfig.SetConfigName("app")
-		viperConfig.SetConfigType("toml")
-		viperConfig.AddConfigPath("$HOME/.config/app")
+	// Open an existing config or create a new one.
+	openCreateJsonFile(configFile, configForce)
 
-		basedir := filepath.Join(os.Getenv("HOME"), ".config", "app")
-		configFile = filepath.Join(basedir, "app.toml")
-		if _, err := os.Stat(configFile); err != nil {
-			err := os.MkdirAll(basedir, 0755)
-			if err != nil {
-				log.Error("Could not create config path", "path", basedir, "error", err)
-				fmt.Printf("Could not create config path, path=%v, error=%v\n", basedir, err)
-				os.Exit(2)
-			}
-			f, err := os.Create(configFile)
-			if err != nil {
-				log.Error("Could not create empty config file", "file", configFile, "error", err)
-				fmt.Printf("Could not create empty config file, file=%v, error=%v\n", configFile, err)
-				os.Exit(2)
-			}
-			_ = f.Close()
-		} else if reconf {
-			_ = os.Truncate(configFile, 0)
-		}
-	}
-
-	// read in environment variables that match
-	viperConfig.AutomaticEnv()
+	// Read in environment variables that match.
+	configViper.AutomaticEnv()
 
 	// If a config file is found, read it in.
-	if err := viperConfig.ReadInConfig(); err != nil {
-		log.Error("Problem reading/decoding config file", "viper error", err)
-		fmt.Printf("Problem reading/decoding config file, viper error=%v\n", err)
+	readConfigFile(configViper)
+	logger.Log().Info("Using config file", "file", configViper.ConfigFileUsed())
+	logger.Log().Debug("Config file", "data", spew.Sdump(configViper.AllSettings()))
+}
+
+func readConfigFile(vpr *viper.Viper) {
+	if err := vpr.ReadInConfig(); err != nil {
+		logger.Log().Error("Problem reading/decoding viper data file", "file", vpr.ConfigFileUsed(), "error", err)
+		fmt.Fprintf(os.Stderr, "Problem reading/decoding viper data file, file=%v, error=%v\n", vpr.ConfigFileUsed(), err)
 		os.Exit(2)
-	} else {
-		log.Info("Using config", "file", viperConfig.ConfigFileUsed())
-		log.Debug("Config", "all settings", spew.Sdump(viperConfig.AllSettings()))
+	}
+}
+
+func openCreateJsonFile(filename string, force bool) {
+	if _, err := os.Stat(filename); err != nil || force {
+		err := os.MkdirAll(filepath.Dir(filename), 0755)
+		if err != nil {
+			logger.Log().Error("Could not create file path", "path", filepath.Dir(filename), "error", err)
+			fmt.Fprintf(os.Stderr, "Could not create file path, path=%v, error=%v\n", filepath.Dir(filename), err)
+			os.Exit(2)
+		}
+		f, err := os.Create(filename)
+		if err != nil {
+			logger.Log().Error("Could not create empty file", "file", filename, "error", err)
+			fmt.Fprintf(os.Stderr, "Could not create empty file, file=%v, error=%v\n", filename, err)
+			os.Exit(2)
+		}
+		_, err = f.WriteString("{}")
+		if err != nil {
+			logger.Log().Error("Could not write empty JSON to new file", "file", filename, "error", err)
+			fmt.Fprintf(os.Stderr, "Could not write empty JSON to new file, file=%v, error=%v\n", filename, err)
+			os.Exit(2)
+		}
+		_ = f.Close()
 	}
 }

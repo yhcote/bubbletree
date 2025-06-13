@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"example/internal"
+	"example/internal/app"
 	"example/models/configurator"
 	"example/models/coreapp"
 
@@ -29,48 +29,44 @@ const (
 	maxIterationTime = 16 * time.Millisecond
 )
 
-var (
-	// slog logger to use throughout the model.
-	log *slog.Logger
-)
-
 // New creates the root model of a bubbletea program. It's usually
 // called just before tea.NewProgram. Options can be passed in with opts, to
 // initialize the program with command line arguments, and possibly configs,
 // communicated to the rest of the program and child models.
-func New(opts ...Option) bubbletree.RootModel {
+func New(opts ...Option) (bubbletree.RootModel, error) {
 	var m Model
-
 	for _, opt := range opts {
 		opt(&m)
 	}
-
-	// Conveniently alias m.Logger to log.
-	if m.logger != nil {
-		log = m.logger
-	} else {
-		log = slog.Default() // Best effort
+	if m.logger == nil {
+		m.logger = slog.Default()
 	}
-
-	// When no optional configuration state has been requested,
-	// use a default one.
+	if m.configViper == nil {
+		return nil, fmt.Errorf("configuration through 'viper' is expected, pass the 'WithConfigViper' option")
+	}
 	if m.spewcfg == nil {
 		m.spewcfg = spew.NewDefaultConfig()
 	}
 
-	// Create all child models
-	m.configuratorModel = configurator.New(configurator.WithLogger(m.logger), configurator.WithViper(m.viper))
-	m.coreappModel = coreapp.New(coreapp.WithLogger(m.logger), coreapp.WithViper(m.viper))
+	// Create and link all descendant models used in the application.
+	m.Models = new(sync.Map)
+	var model bubbletree.CommonModel
 
-	return m
+	model = configurator.New(configurator.WithLogger(m.logger), configurator.WithViper(m.configViper))
+	m.LinkNewModel(model, &m.modelConfigID)
+
+	model = coreapp.New(coreapp.WithLogger(m.logger), coreapp.WithViper(m.configViper))
+	m.LinkNewModel(model, &m.modelCoreappID)
+
+	return m, nil
 }
 
 // Model is the application's root Model definition. Child models are embeded
 // here so that the entire application's information is available from this
 // base structure.
 type Model struct {
-	// Last program recorded error.
-	err error
+	// Include fields and default methods of bubbletree.DefaultRootModel.
+	bubbletree.DefaultRootModel
 
 	// Terminal window size is set and we can start generating views.
 	ready bool
@@ -90,9 +86,9 @@ type Model struct {
 	// The update and view methods execution timing.
 	timing
 
-	// Direct child models.
-	configuratorModel bubbletree.LeafModel
-	coreappModel      bubbletree.BranchModel
+	// Direct child models saved IDs for direct and easy access.
+	modelConfigID  string
+	modelCoreappID string
 }
 
 // screen holds the current state details of the terminal window.
@@ -110,13 +106,23 @@ type timing struct {
 
 // Init sends a kick-off tea command when needed.
 func (m Model) Init() tea.Cmd {
-	// Start the application in configuration state
-	return tea.Batch(
-		tea.SetWindowTitle(fmt.Sprintf("%s  ver: %s", internal.ProgramName, internal.ProgramVersion)),
-		m.configuratorModel.Init(),
-		m.coreappModel.Init(),
-		bubbletree.SetFocusCmd(m.configuratorModel.GetModelID()),
-	)
+	cmds := []tea.Cmd{
+		// Set the terminal window title.
+		tea.SetWindowTitle(fmt.Sprintf("%s  ver: %s", app.ProgramName, app.ProgramVersion)),
+
+		// Start the application in configuration state
+		bubbletree.SetFocusCmd(m.modelConfigID),
+	}
+	// Run all descendant's Init() routine and collect their returned tea Cmds.
+	m.Models.Range(func(key, value any) bool {
+		if model, ok := value.(bubbletree.CommonModel); ok {
+			cmds = append(cmds, model.Init())
+		} else {
+			panic("stored model isn't of bubbletree.CommonModel")
+		}
+		return true
+	})
+	return tea.Batch(cmds...)
 }
 
 // Update gathers messages for base and child models, and routes them down the
@@ -128,45 +134,47 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	// Check base model interpreted pressed keys
 	case tea.KeyMsg:
-		log.Debug("Update()", "message", m.spewcfg.Sprintf("%#+v", msg))
+		m.logger.Debug("Update()", "message", m.spewcfg.Sprintf("%#+v", msg))
 		switch msg.String() {
 		// Key pressed meaning exit.
 		case "ctrl+c", "esc":
 			m.quitting = true
 			return m, tea.Quit
 		}
+
 	// Root model sent a set focus message, record it
 	case bubbletree.SetFocusMsg:
 		m.focused = msg.ModelID
+
 	// The terminal window has been changed.
 	case tea.WindowSizeMsg:
-		log.Debug("Update()", "message", m.spewcfg.Sprintf("%#+v", msg))
+		m.logger.Debug("Update()", "message", m.spewcfg.Sprintf("%#+v", msg))
 		m.width = msg.Width
 		m.height = msg.Height
 		if !m.ready {
 			m.ready = true
 		}
+
 	// Configurator workflow success, the app is now setup and configured.
 	case configurator.ConfigReadyMsg:
-		log.Debug("Update()", "message", m.spewcfg.Sprintf("%#+v", msg))
-		cmds = append(cmds, bubbletree.SetFocusCmd(m.coreappModel.GetModelID()))
+		cmds = append(cmds, bubbletree.SetFocusCmd(m.modelCoreappID))
+
 	// CoreApp workflow success, the app is now loaded and enters its main workflow.
 	case bubbletree.ModelFinishedMsg:
-		log.Debug("Update()", "message", m.spewcfg.Sprintf("%#+v", msg))
-		if msg.IsRecipient(m.coreappModel.GetModelID()) {
+		if msg.IsRecipient(m.modelCoreappID) {
 			cmds = append(cmds, bubbletree.SetFocusCmd(""))
 		}
+
 	// A model encountered an error, decode and treat the error
 	case bubbletree.ErrMsg:
-		log.Error("an error was returned by a child model", "err", fmt.Sprintf("%+v", msg.Err))
+		m.Err = fmt.Errorf("received model error message: %w", msg.Err)
+		m.logger.Error("terminating root model", "error", m.Err)
 		m.quitting = true
 		return m, tea.Quit
 	}
 
 	// Propagate current message to child models, so they call Update(msg).
-	rm, cmd := m.UpdateNodeModels(msg)
-	m = rm.(Model)
-	cmds = append(cmds, cmd)
+	cmds = append(cmds, m.UpdateNodeModels(msg))
 
 	// Record event loop elapsed time. Keep the main loop snappy.
 	m.updateRuntime = time.Since(t1)
@@ -187,17 +195,19 @@ func (m Model) View() string {
 	}
 
 	if m.quitting {
-		return renderQuittingView(m.err, m.width, m.height)
+		return renderQuittingView(m.Err, m.width, m.height)
 	}
 
 	t1 := time.Now()
 	switch m.focused {
 	// Show the config form view for settings input
-	case m.configuratorModel.GetModelID():
-		view = renderConfigView(m.configuratorModel, m.width, m.height)
+	case m.modelConfigID:
+		view = renderConfigView(m.MustGetModel(m.modelConfigID), m.width, m.height)
+
 	// Show the main application view
-	case m.coreappModel.GetModelID():
-		view = renderCoreAppView(m.coreappModel, m.width, m.height)
+	case m.modelCoreappID:
+		view = renderCoreAppView(m.MustGetModel(m.modelCoreappID), m.width, m.height)
+
 	// Show a base placeholder when no other models are in focus
 	default:
 		view = renderBaseView(m.width, m.height)
@@ -206,7 +216,7 @@ func (m Model) View() string {
 	// Record main view rendering elapsed time. Keep the rendering fast.
 	m.viewRuntime = time.Since(t1)
 	if m.updateRuntime+m.viewRuntime > maxIterationTime {
-		log.Warn("update/view iteration took too long",
+		m.logger.Warn("update/view iteration took too long",
 			"update", m.updateRuntime.Round(time.Microsecond).String(),
 			"view", m.viewRuntime.Round(time.Microsecond).String(),
 		)
@@ -215,58 +225,6 @@ func (m Model) View() string {
 	m.viewRuntime = 0
 
 	return view
-}
-
-// UpdateNodeModels routes a tea.Msg to all registered child component
-// models. Each component's Update() routine is called with 'msg'.
-func (m Model) UpdateNodeModels(msg tea.Msg) (bubbletree.RootModel, tea.Cmd) {
-	const modelCount = 2 // make sure this counts the number of models
-	var (
-		cmds  []tea.Cmd
-		wg    sync.WaitGroup
-		mchan = make(chan bubbletree.CommonModel, modelCount)
-		cchan = make(chan tea.Cmd, modelCount)
-	)
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		model, cmd := m.configuratorModel.Update(msg)
-		cchan <- cmd
-		mchan <- model
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		model, cmd := m.coreappModel.Update(msg)
-		cchan <- cmd
-		mchan <- model
-	}()
-
-	// Wait for all goroutines, then close all channels while the main function,
-	// just below, collects data.
-	go func() {
-		wg.Wait()
-		close(mchan)
-		close(cchan)
-	}()
-
-	for cmd := range cchan {
-		cmds = append(cmds, cmd)
-	}
-	for model := range mchan {
-		switch model.GetModelID() {
-		case m.configuratorModel.GetModelID():
-			m.configuratorModel = model.(bubbletree.LeafModel)
-		case m.coreappModel.GetModelID():
-			m.coreappModel = model.(bubbletree.BranchModel)
-		default:
-			panic("unexpected Update() returned model type")
-		}
-	}
-
-	return m, tea.Batch(cmds...)
 }
 
 // Msg/Cmd's
@@ -279,9 +237,9 @@ type Option func(*Model)
 // BaseOpts describes general configurations or states of the base model
 // for the application.
 type BaseOpts struct {
-	logger  *slog.Logger
-	viper   *viper.Viper
-	spewcfg *spew.ConfigState
+	logger      *slog.Logger
+	configViper *viper.Viper
+	spewcfg     *spew.ConfigState
 }
 
 // WithLogger sets the logger to use for model logging.
@@ -291,10 +249,10 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
-// WithViper sets the active viper config to use in the model.
-func WithViper(viper *viper.Viper) Option {
+// WithConfigViper sets the active viper config to use in the model.
+func WithConfigViper(viper *viper.Viper) Option {
 	return func(m *Model) {
-		m.viper = viper
+		m.configViper = viper
 	}
 }
 

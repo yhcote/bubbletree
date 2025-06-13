@@ -8,8 +8,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 
+	"example/internal/app"
 	"example/models/configurator"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,62 +19,69 @@ import (
 	"github.com/yhcote/bubbletree"
 )
 
-// const ()
+const (
+	// short model name used for identification.
+	modelName = "coreapp"
+)
 
 var (
-	// slog logger to use throughout the model.
-	log *slog.Logger
-
-	// unique model instance id.
+	// unique model instance id based on 'modelName'.
 	lastID atomic.Int64
 )
 
 // New creates and initializes a new model ready to be used.
 func New(opts ...Option) bubbletree.BranchModel {
 	ctx, cancel := context.WithCancel(context.Background())
-	m := Model{
-		Common: bubbletree.Common{
-			ID:     nextID(), // Model's unique instance identifier
-			Ctx:    ctx,      // Model's context used to control long running Cmd's
-			Cancel: cancel,   // Model's context cancel func associated with Ctx
+	m := &Model{
+		DefaultBranchModel: bubbletree.DefaultBranchModel{
+			DefaultCommonModel: bubbletree.DefaultCommonModel{
+				ID:     fmt.Sprintf("%s-%d", modelName, lastID.Add(1)),
+				Ctx:    ctx,
+				Cancel: cancel,
+			},
 		},
 	}
-
 	for _, opt := range opts {
-		opt(&m)
+		opt(m)
 	}
 
-	// Conveniently alias m.logger to log.
-	if m.Logger != nil {
-		log = m.Logger
-	} else {
-		log = slog.Default() // Best effort
-	}
+	// Create and link all descendant models used in the application.
+	// NOTE: No descendants at the moment (movers will be implemented).
+	m.Models = new(sync.Map)
 
-	log.Info("New model created", "ModelID", m.ID)
+	m.Logger.Info("New model created", "ModelID", m.ID)
 	return m
-}
-
-func nextID() string {
-	return fmt.Sprintf("coreapp%d", lastID.Add(1))
 }
 
 // Model is the definition of the coreapp model.
 type Model struct {
-	// Include all common fields of a CommonModel from the 'bubbletree' package.
-	bubbletree.Common
+	// Include fields and default methods of bubbletree.DefaultBranchModel.
+	bubbletree.DefaultBranchModel
 }
 
 // Init sends a kick-off tea command when needed.
 func (m Model) Init() tea.Cmd {
-	return nil
+	var cmds []tea.Cmd
+
+	// Run all descendant's Init() routine and collect their returned tea Cmds.
+	m.Models.Range(func(key, value any) bool {
+		if model, ok := value.(bubbletree.CommonModel); ok {
+			cmds = append(cmds, model.Init())
+		} else {
+			panic("stored model isn't of bubbletree.CommonModel")
+		}
+		return true
+	})
+	return tea.Batch(cmds...)
 }
 
 // Update is responsible for accepting a tea message passed down from the
 // parent model and update the model data when appropriate.
 func (m Model) Update(msg tea.Msg) (bubbletree.BranchModel, tea.Cmd) {
-	var cmds []tea.Cmd
-
+	var (
+		cmds []tea.Cmd
+		ok   bool
+	)
 	if m.IsDisabled() {
 		return m, nil
 	}
@@ -82,57 +91,19 @@ func (m Model) Update(msg tea.Msg) (bubbletree.BranchModel, tea.Cmd) {
 	case configurator.ConfigReadyMsg:
 		if m.IsInactive() {
 			m.State = bubbletree.ActiveState
-			log.Info("model state change on message", "Msg", fmt.Sprintf("%T%+v", msg, msg), "ModelID", m.GetModelID(), "NewState", m.State)
-		}
-
-	// General Model Msgs section
-
-	// When disabled requested, accept and mark this model as disabled.
-	case bubbletree.SetDisabledMsg:
-		if msg.IsRecipient(m.GetModelID()) {
-			if !m.IsDisabled() {
-				m.Properties |= bubbletree.Disabled
-				log.Info("property change on message", "Msg", fmt.Sprintf("%T%+v", msg, msg), "Adding Disabled", m.GetModelID())
-			}
-		} else {
-			if m.IsDisabled() {
-				m.Properties &= ^bubbletree.Disabled
-				log.Info("property change on message", "Msg", fmt.Sprintf("%T%+v", msg, msg), "Removing Disabled", m.GetModelID())
-			}
-		}
-	// When focus requested, accept and mark this model as focused.
-	case bubbletree.SetFocusMsg:
-		if msg.IsRecipient(m.GetModelID()) {
-			if !m.IsFocused() {
-				m.Properties |= bubbletree.Focused
-				log.Info("property change on message", "Msg", fmt.Sprintf("%T%+v", msg, msg), "Adding Focus", m.GetModelID())
-			}
-		} else {
-			if m.IsFocused() {
-				m.Properties &= ^bubbletree.Focused
-				log.Info("property change on message", "Msg", fmt.Sprintf("%T%+v", msg, msg), "Losing Focus", m.GetModelID())
-			}
-		}
-	// ShuttingDownMsg means that the application is terminating: cleanup and inactivate.
-	case bubbletree.ShutDownMsg:
-		if msg.IsRecipient(m.GetModelID()) && !m.IsShuttingDown() {
-			m.State = bubbletree.ShuttingDownState
-			m.CancelContext()
-			cmds = append(cmds, bubbletree.ModelFinishedCmd(m.GetModelID()))
-			log.Info("model state change on message", "Msg", fmt.Sprintf("%T%+v", msg, msg), "ModelID", m.GetModelID(), "NewState", m.State)
-		}
-	// ModelFinishedMsg marks the end-of-life for the model instance.
-	case bubbletree.ModelFinishedMsg:
-		if msg.IsRecipient(m.GetModelID()) && !m.IsFinished() {
-			m.State = bubbletree.FinishedState
-			log.Info("model state change on message", "Msg", fmt.Sprintf("%T%+v", msg, msg), "ModelID", m.GetModelID(), "NewState", m.State)
+			m.LogStateChange(msg)
 		}
 	}
 
-	// Propagate current message to child models, so they call Update(msg).
-	rm, cmd := m.UpdateNodeModels(msg)
-	m = rm.(Model)
+	// Run the default message handlers from bubbletree.
+	branchModel, cmd := m.DefaultBranchModel.Update(msg)
+	if m.DefaultBranchModel, ok = branchModel.(bubbletree.DefaultBranchModel); !ok {
+		panic("DefaultBranchModel.Update didn't returned 'branchModel' as expected 'bubbletree.DefaultBranchModel' type")
+	}
 	cmds = append(cmds, cmd)
+
+	// Propagate current message to child models, so they call Update(msg).
+	cmds = append(cmds, m.UpdateNodeModels(msg))
 
 	return m, tea.Batch(cmds...)
 }
@@ -141,85 +112,12 @@ func (m Model) Update(msg tea.Msg) (bubbletree.BranchModel, tea.Cmd) {
 // the current state of the model data. The rendered string is passed back up
 // to the root model for final window composition.
 func (m Model) View(w, h int) string {
-	if m.IsFocused() && m.IsActive() {
-		return "Nothing to see here..."
-	}
 	return ""
 }
 
 // GetViewHeader returns the model's header view string.
 func (m Model) GetViewHeader() string {
-	return "CoreApp running"
-}
-
-// GetViewFooter returns the model's footer view string.
-func (m Model) GetViewFooter() string {
-	return ""
-}
-
-// UpdateNodeModels routes a tea.Msg to all registered child component
-// models. Each component's Update() routine is called with 'msg'.
-func (m Model) UpdateNodeModels(msg tea.Msg) (bubbletree.BranchModel, tea.Cmd) {
-	return m, nil
-}
-
-// CancelContext calls the cancel function on the model's context.
-func (m Model) CancelContext() {
-	log.Info("Cancelling model's context")
-	if m.Cancel != nil {
-		m.Cancel()
-	} else {
-		log.Warn("The model's cancel function is unexpectedly nil, context cannot be cancelled.")
-	}
-}
-
-// GetModelID returns the name or ID of the model's instance. It is used by
-// the parent models to organize and keep track of child model instances and
-// to identify instances currently active, among other things.
-func (m Model) GetModelID() string {
-	return m.ID
-}
-
-// GetState returns the current model's instance state.
-func (m Model) GetState() bubbletree.State {
-	return m.State
-}
-
-// IsActive returns whether the current model is in Active state.
-func (m Model) IsActive() bool {
-	return m.State == bubbletree.ActiveState
-}
-
-// IsInactive returns whether the current model is in Inactive state.
-func (m Model) IsInactive() bool {
-	return m.State == bubbletree.InactiveState
-}
-
-// IsShuttingDown returns whether the current model is still shutting down
-// or not.
-func (m Model) IsShuttingDown() bool {
-	return m.State == bubbletree.ShuttingDownState
-}
-
-// IsFinished returns whether the current model has completed its shutdown
-// sequence: its goroutines returned, and its resources are fully freed.
-func (m Model) IsFinished() bool {
-	return m.State == bubbletree.FinishedState
-}
-
-// GetProperties returns the current model's instance properties.
-func (m Model) GetProperties() bubbletree.Properties {
-	return m.Properties
-}
-
-// IsDisabled returns whether the current model is in Disabled state.
-func (m Model) IsDisabled() bool {
-	return m.Properties&bubbletree.Disabled != 0
-}
-
-// IsFocused returns whether the current model is in focus.
-func (m Model) IsFocused() bool {
-	return m.Properties&bubbletree.Focused != 0
+	return fmt.Sprintf("%v %v / model: %v", app.ProgramName, app.ProgramVersion, m.ID)
 }
 
 // Options

@@ -9,15 +9,21 @@ package commands
 import (
 	"net/http"
 	_ "net/http/pprof"
+
+	"github.com/yhcote/bubbletree/logger"
 )
 
-const releaseBuild = false
+const (
+	releaseBuild    = false
+	pprofServerAddr = "localhost:6161"
+)
 
 func init() {
 	if !releaseBuild {
 		// benchmarking and profiling
+		logger.Log().Info("Starting go profiling server", "addr", pprofServerAddr)
 		go func() {
-			log.Error(http.ListenAndServe("localhost:6060", nil).Error())
+			logger.Log().Error(http.ListenAndServe(pprofServerAddr, nil).Error())
 		}()
 	}
 }

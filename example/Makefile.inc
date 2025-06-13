@@ -20,13 +20,9 @@ MAKEFLAGS += --no-print-directory
 V         ?= @
 PREFIX    ?= /usr/local
 GO        ?= go
-GOWORK    ?= off
 GOLINT    ?= golangci-lint
 
-# Those need to be effective with the programs using then externally.
-export GOWORK
-
-module    ?= $(shell go list -m)
+module    ?= $(shell GOWORK=off go list -m)
 os        ?= linux
 arch      ?= amd64
 testout   ?= tests.out
@@ -51,18 +47,17 @@ dep-upgrade::
 	$(V)$(GO) get -u ./...
 	@printf '\e[38;5;202m  TIDY\e[m          %s\n' "$(project)"
 	$(V)$(GO) mod tidy
-	@printf '\e[38;5;202m  VENDOR\e[m        %s\n' "$(project)"
-	$(V)GOWORK=off $(GO) mod vendor
+	@printf '\e[38;5;202m  SYNC\e[m          %s\n' "$(project)"
+	$(V)$(GO) work sync
 
 devel::
-	$(V)if test "$(shell $(GO) env GOWORK)" != "off"; then printf '\e[38;5;192m%s\e[m\n' "*** GO WORKSPACE ENABLED: release builds may fail (or vice versa)"; fi
 	$(V)$(foreach p,$(programs), \
 		printf '\e[38;5;202m  BUILD\e[m         %s\n' "$(p) -> $(p).$(version)" && \
-		GOOS=$(os) GOARCH=$(arch) $(GO) build -ldflags "-s -X $(module)/internal.ProgramVersion=$(version)" -o $(p).$(version) ./cmd/$(p); \
+		GOOS=$(os) GOARCH=$(arch) $(GO) build -ldflags "-s -X $(module)/internal/$(p).ProgramVersion=$(version)" -o $(p).$(version) ./cmd/$(p); \
 	)
 	$(V)$(foreach p,$(programs), \
 		printf '\e[38;5;202m  BUILD (DBG) \e[m  %s\n' "$(p) -> $(p)-debug.$(version)" && \
-		GOOS=$(os) GOARCH=$(arch) $(GO) build -ldflags "-X $(module)/internal.ProgramVersion=$(version)" -race -gcflags='all=-N -l' -o $(p)-debug.$(version) ./cmd/$(p); \
+		GOOS=$(os) GOARCH=$(arch) $(GO) build -ldflags "-X $(module)/internal/$(p).ProgramVersion=$(version)" -race -gcflags='all=-N -l' -o $(p)-debug.$(version) ./cmd/$(p); \
 	)
 
 info:
@@ -83,15 +78,15 @@ lint::
 	@printf '\e[38;5;202m  LINT\e[m          %s' "$(project) -> "
 	$(V)$(GOLINT) run
 
-release::
+release:: info
 	$(V)$(foreach p,$(programs), \
 		printf '\e[38;5;202m  BUILD (REL)\e[m   %s\n' "$(p)" && \
-		GOOS=$(os) GOARCH=$(arch) GOWORK=off $(GO) build -tags release -ldflags "-s -X $(module)/internal.ProgramVersion=$(version)" -o $(p) ./cmd/$(p); \
+		GOOS=$(os) GOARCH=$(arch) GOWORK=off $(GO) build -tags release -ldflags "-s -X $(module)/internal/$(p).ProgramVersion=$(version)" -o $(p) ./cmd/$(p); \
 	)
 	@printf '\e[38;5;202m  TEST\e[m          %s\n' "$(project)"
-	$(V)GOOS=$(os) GOARCH=$(arch) GOWORK=off $(GO) test -tags release -ldflags "-s -X $(module)/internal.ProgramVersion=$(version)" ./... >$(testout) || \
+	$(V)GOOS=$(os) GOARCH=$(arch) GOWORK=off $(GO) test -tags release -ldflags "-s -X $(module)/internal/$(p).ProgramVersion=$(version)" ./... >$(testout) || \
 		(grep -v -e "^\?" -e "^ok" -e "^FAIL" $(testout) && exit 2)
-	$(V)$(MAKE) lint
+	$(V)GOWORK=off $(MAKE) lint
 	@printf '\e[38;5;202m  INFO\e[m          %s\n' "$(project)"
 	@:> $(project).info
 	$(V)$(foreach p,$(programs), \
@@ -105,7 +100,7 @@ scrub::
 
 test::
 	@printf '\e[38;5;202m  TEST\e[m          %s\n' "$(project)"
-	$(V)GOOS=$(os) GOARCH=$(arch) $(GO) test -ldflags "-s -X $(module)/internal.ProgramVersion=$(version)" ./... >$(testout) || \
+	$(V)GOOS=$(os) GOARCH=$(arch) $(GO) test -ldflags "-s -X $(module)/internal/$(p).ProgramVersion=$(version)" ./... >$(testout) || \
 		(grep -v -e "^\?" -e "^ok" -e "^FAIL" $(testout) && exit 2)
 
 version::
