@@ -53,11 +53,14 @@ manual page.`,
 			app.ProgramName, app.ProgramVersion, logger.GetLoggerOutputName(), configViper.ConfigFileUsed())
 
 		// Initialize App's base (root) model
-		m, err := root.New(
+		// Initialize App's base (root) model
+		options := []root.Option{
 			root.WithLogger(logger.Log()),
 			root.WithConfigViper(configViper),
 			root.WithSpewConfigState(&spew.ConfigState{MaxDepth: 1}),
-		)
+			root.WithReconfigure(configForce),
+		}
+		m, err := root.New(options...)
 		if err != nil {
 			cmd.SilenceUsage = true
 			return err
@@ -102,7 +105,7 @@ func initConfigViper() {
 	configViper.SetConfigFile(configFile)
 
 	// Open an existing config or create a new one.
-	openCreateJsonFile(configFile, configForce)
+	openCreateJsonFile(configFile)
 
 	// Read in environment variables that match.
 	configViper.AutomaticEnv()
@@ -121,8 +124,8 @@ func readConfigFile(vpr *viper.Viper) {
 	}
 }
 
-func openCreateJsonFile(filename string, force bool) {
-	if _, err := os.Stat(filename); err != nil || force {
+func openCreateJsonFile(filename string) {
+	if _, err := os.Stat(filename); err != nil {
 		err := os.MkdirAll(filepath.Dir(filename), 0755)
 		if err != nil {
 			logger.Log().Error("Could not create file path", "path", filepath.Dir(filename), "error", err)

@@ -6,9 +6,12 @@ package bubbletree
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/spf13/viper"
 )
 
 // RootModel defines the root node of the bubbletree framework. Only one
@@ -42,11 +45,56 @@ type RootModel interface {
 // The implementor of the RootModel interface may overwrite the default
 // behavior of the model by reimplementing desired methods.
 type DefaultRootModel struct {
+	// Options passed in by the main program.
+	RootOpts
+
 	// The last error recorded in the model.
 	Err error
 
 	// The <ModelID, *Model> map of all registered descendant models.
 	Models *sync.Map
+}
+
+// RootOpts describes general configurations or states of the root model
+// for the application.
+type RootOpts struct {
+	Logger      *slog.Logger
+	ConfigViper *viper.Viper
+	Spewcfg     *spew.ConfigState
+	Reconf      bool
+}
+
+// RootOption is used to set options on the base model of the application.
+type RootOption func(*DefaultRootModel)
+
+// WithLogger sets the logger to use for model logging.
+func WithLogger(logger *slog.Logger) RootOption {
+	return func(m *DefaultRootModel) {
+		m.Logger = logger
+	}
+}
+
+// WithConfigViper sets the active viper config to use in the model.
+func WithConfigViper(viper *viper.Viper) RootOption {
+	return func(m *DefaultRootModel) {
+		m.ConfigViper = viper
+	}
+}
+
+// WithSpewConfigState sets spew utility configuration state instance to
+// a specified one.
+func WithSpewConfigState(spewcfg *spew.ConfigState) RootOption {
+	return func(m *DefaultRootModel) {
+		m.Spewcfg = spewcfg
+	}
+}
+
+// WithReconfigure ignores a complete config file and brings up the user input
+// form, enabling configuration changes.
+func WithReconfigure(force bool) RootOption {
+	return func(m *DefaultRootModel) {
+		m.Reconf = force
+	}
 }
 
 // UpdateNodeModels is the default implementation of the RootModel interface.

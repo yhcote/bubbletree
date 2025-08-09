@@ -52,7 +52,7 @@ func New(opts ...Option) (bubbletree.RootModel, error) {
 	m.Models = new(sync.Map)
 	var model bubbletree.CommonModel
 
-	model = configurator.New(configurator.WithLogger(m.logger), configurator.WithViper(m.configViper))
+	model = configurator.New(configurator.WithLogger(m.logger), configurator.WithViper(m.configViper), configurator.WithReconfigure(m.reconf))
 	m.LinkNewModel(model, &m.modelConfigID)
 
 	model = coreapp.New(coreapp.WithLogger(m.logger), coreapp.WithViper(m.configViper))
@@ -240,6 +240,7 @@ type BaseOpts struct {
 	logger      *slog.Logger
 	configViper *viper.Viper
 	spewcfg     *spew.ConfigState
+	reconf      bool
 }
 
 // WithLogger sets the logger to use for model logging.
@@ -261,5 +262,13 @@ func WithConfigViper(viper *viper.Viper) Option {
 func WithSpewConfigState(spewcfg *spew.ConfigState) Option {
 	return func(m *Model) {
 		m.spewcfg = spewcfg
+	}
+}
+
+// WithReconfigure ignores a complete config file and brings up the user input
+// form, enabling configuration changes.
+func WithReconfigure(force bool) Option {
+	return func(m *Model) {
+		m.reconf = force
 	}
 }

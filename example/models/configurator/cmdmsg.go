@@ -31,13 +31,12 @@ type (
 // function calls 'isComplete()' returning whether a config file has all
 // required settings. This allows the model to capture missing settings even
 // when a config file is found but incomplete.
-func getConfigCmd(viper *viper.Viper) tea.Cmd {
+func getConfigCmd(viper *viper.Viper, reconf bool) tea.Cmd {
 	return func() tea.Msg {
-		if config, complete := isComplete(viper); complete {
+		if config, complete := isComplete(viper); complete && !reconf {
 			return ConfigReadyMsg{Config: config}
-		} else {
-			return ConfigMissingMsg{}
 		}
+		return ConfigMissingMsg{}
 	}
 }
 

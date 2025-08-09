@@ -56,6 +56,9 @@ type Model struct {
 	// Include fields and default methods of bubbletree.DefaultLeafModel.
 	bubbletree.DefaultLeafModel
 
+	// Force reconfiguration, even when complete configuration detected.
+	reconf bool
+
 	// The current charm form used to input missing required program settings.
 	form *huh.Form
 
@@ -87,10 +90,14 @@ func (m Model) Update(msg tea.Msg) (bubbletree.LeafModel, tea.Cmd) {
 	case bubbletree.SetFocusMsg:
 		if msg.IsRecipient(m.GetModelID()) {
 			if !m.IsFocused() {
+				if m.form == nil {
+					// `Huh` form failed to initialize, wait for ErrMsg to come down.
+					return m, nil
+				}
 				m.State = bubbletree.ActiveState
 				m.LogStateChange(msg)
 
-				cmds = append(cmds, getConfigCmd(m.Viper))
+				cmds = append(cmds, getConfigCmd(m.Viper, m.reconf))
 				m.LogAction(msg, "Requesting configuration")
 			}
 		}
@@ -152,6 +159,9 @@ func (m Model) GetViewHeader() string {
 // GetViewFooter returns the model's footer view string.
 func (m Model) GetViewFooter() string {
 	var s string
+	if m.form == nil {
+		return s
+	}
 	for _, err := range m.form.Errors() {
 		s += err.Error()
 	}
@@ -181,5 +191,11 @@ func WithViper(viper *viper.Viper) Option {
 func WithDisabled() Option {
 	return func(m *Model) {
 		m.Properties |= bubbletree.Disabled
+	}
+}
+
+func WithReconfigure(force bool) Option {
+	return func(m *Model) {
+		m.reconf = force
 	}
 }
