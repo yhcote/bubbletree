@@ -120,18 +120,7 @@ func (m DefaultBranchModel) UpdateNodeModels(msg tea.Msg) tea.Cmd {
 		go func() {
 			defer wg.Done()
 
-			var cmd tea.Cmd
-			if model, ok := value.(BranchModel); ok {
-				model, cmd = model.Update(msg)
-				m.Models.Store(model.GetModelID(), model)
-				cchan <- cmd
-			} else if model, ok := value.(LeafModel); ok {
-				model, cmd = model.Update(msg)
-				m.Models.Store(model.GetModelID(), model)
-				cchan <- cmd
-			} else {
-				panic("current model doesn't implement a branch or a leaf model")
-			}
+			cchan <- m.UpdateNodeModel(value.(CommonModel), msg)
 		}()
 		return true
 	})
@@ -148,6 +137,23 @@ func (m DefaultBranchModel) UpdateNodeModels(msg tea.Msg) tea.Cmd {
 	}
 
 	return tea.Batch(cmds...)
+}
+
+// UpdateNodeModel runs the Update() method on a specified model with the
+// passed in message. The descendant returned tea.Cmd is relayed to the caller.
+func (m DefaultBranchModel) UpdateNodeModel(model CommonModel, msg tea.Msg) tea.Cmd {
+	var cmd tea.Cmd
+	if bModel, ok := model.(BranchModel); ok {
+		bModel, cmd = bModel.Update(msg)
+		m.Models.Store(bModel.GetModelID(), model)
+		return cmd
+	} else if lModel, ok := model.(LeafModel); ok {
+		lModel, cmd = lModel.Update(msg)
+		m.Models.Store(lModel.GetModelID(), lModel)
+		return cmd
+	} else {
+		panic("current model doesn't implement a branch or a leaf model")
+	}
 }
 
 // LinkNewModel takes a new descendant model and updates the model ID saved
