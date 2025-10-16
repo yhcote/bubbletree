@@ -152,12 +152,12 @@ func (m Model) View(w, h int) string {
 var viewStyle = lipgloss.NewStyle().Margin(1)
 
 // GetViewHeader returns the model's header view string.
-func (m Model) GetViewHeader() string {
+func (m Model) GetViewHeader(w, h int) string {
 	return "Acquiring System Configuration"
 }
 
 // GetViewFooter returns the model's footer view string.
-func (m Model) GetViewFooter() string {
+func (m Model) GetViewFooter(w, h int) string {
 	var s string
 	if m.form == nil {
 		return s

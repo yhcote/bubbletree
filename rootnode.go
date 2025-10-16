@@ -62,6 +62,7 @@ type RootOpts struct {
 	ConfigViper *viper.Viper
 	Spewcfg     *spew.ConfigState
 	Reconf      bool
+	Theme       Themer // Optional theme for UI styling
 }
 
 // RootOption is used to set options on the base model of the application.
@@ -94,6 +95,13 @@ func WithSpewConfigState(spewcfg *spew.ConfigState) RootOption {
 func WithReconfigure(force bool) RootOption {
 	return func(m *DefaultRootModel) {
 		m.Reconf = force
+	}
+}
+
+// WithTheme sets the theme for the entire application tree.
+func WithTheme(theme Themer) RootOption {
+	return func(m *DefaultRootModel) {
+		m.Theme = theme
 	}
 }
 

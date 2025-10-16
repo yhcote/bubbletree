@@ -26,8 +26,8 @@ import (
 type CommonModel interface {
 	Init() tea.Cmd
 	View(w, h int) string
-	GetViewHeader() string
-	GetViewFooter() string
+	GetViewHeader(w, h int) string
+	GetViewFooter(w, h int) string
 	CancelContext()
 	GetModelID() string
 	GetState() State
@@ -62,6 +62,9 @@ type DefaultCommonModel struct {
 
 	// The cancel func associated with the above context.
 	Cancel context.CancelFunc
+
+	// Optional theme for UI styling. Can be nil if application doesn't use theming.
+	Theme Themer
 }
 
 // Init is the default implementation of the CommonModel interface. It sends
@@ -78,7 +81,7 @@ func (m DefaultCommonModel) Init() tea.Cmd {
 // actual terminal window size if the root model communicates it as being the
 // case.
 func (m DefaultCommonModel) View(w, h int) string {
-	if m.IsFocused() && m.IsActive() {
+	if m.IsActive() {
 		return "Application Running..."
 	}
 	return ""
@@ -88,8 +91,8 @@ func (m DefaultCommonModel) View(w, h int) string {
 // It returns the view portion that should be displayed in the app's header
 // section of the final composed UI window. This should be a short string or
 // a unicode icon.
-func (m DefaultCommonModel) GetViewHeader() string {
-	if m.IsFocused() && m.IsActive() {
+func (m DefaultCommonModel) GetViewHeader(w, h int) string {
+	if m.IsActive() {
 		return "Application's header notes / menus"
 	}
 	return ""
@@ -99,8 +102,8 @@ func (m DefaultCommonModel) GetViewHeader() string {
 // It returns the view portion that should be displayed in the app's footer
 // section of the final composed UI window. This should be a short string or
 // a unicode icon.
-func (m DefaultCommonModel) GetViewFooter() string {
-	if m.IsFocused() && m.IsActive() {
+func (m DefaultCommonModel) GetViewFooter(w, h int) string {
+	if m.IsActive() {
 		return "Application's footer notes / menus"
 	}
 	return ""
@@ -185,6 +188,15 @@ func (m DefaultCommonModel) IsFocused() bool {
 	return m.Properties&Focused != 0
 }
 
+// GetTheme returns the theme if set, otherwise returns the default minimal theme.
+// This ensures models always have access to a valid theme for rendering.
+func (m DefaultCommonModel) GetTheme() Themer {
+	if m.Theme != nil {
+		return m.Theme
+	}
+	return DefaultMinimalTheme()
+}
+
 // LogStateChange sends a standardized log entry after a model state change.
 func (m DefaultCommonModel) LogStateChange(msg any) {
 	m.Logger.Info("Model Update Notification",
@@ -217,8 +229,6 @@ func (m DefaultCommonModel) LogNotice(msg any, notice string) {
 		"Notice", notice,
 		"OnMsg", fmt.Sprintf("%T", msg))
 }
-
-
 
 // The possible bubble tree model states
 const (

@@ -13,6 +13,11 @@ import (
 	"github.com/yhcote/bubbletree"
 )
 
+//
+// 🚧 THIS CODE NEEDS TO BE MOVED TO COREAPP. ROOT (IN IT'S OWN VIEW() METHOD
+// 🚧 SHOULD ONLY AND SIMPLY CALL COREAPP.VIEW(W, H)).
+//
+
 // This file includes the helper code for the base model. We want to keep a
 // clean model.go file with its core (Model Init() Update() View())
 // definitions.
@@ -32,15 +37,15 @@ func renderBaseView(w, h int) string {
 }
 
 func renderConfigView(model bubbletree.CommonModel, w, h int) string {
-	header := renderShareHeight(headerStyle, w, &h, model.GetViewHeader())
-	footer := renderShareHeight(footerStyle, w, &h, model.GetViewFooter())
+	header := renderShareHeight(headerStyle, w, &h, model.GetViewHeader(w, h))
+	footer := renderShareHeight(footerStyle, w, &h, model.GetViewFooter(w, h))
 	content := renderFillHeight(contentStyle.Align(lipgloss.Center, lipgloss.Center), w, &h, model.View(areaSize(contentStyle, w, &h)))
 	return lipgloss.JoinVertical(lipgloss.Left, header, content, footer)
 }
 
 func renderCoreAppView(model bubbletree.CommonModel, w, h int) string {
-	header := renderShareHeight(headerStyle, w, &h, model.GetViewHeader())
-	footer := renderShareHeight(footerStyle, w, &h, model.GetViewFooter())
+	header := renderShareHeight(headerStyle, w, &h, model.GetViewHeader(w, h))
+	footer := renderShareHeight(footerStyle, w, &h, model.GetViewFooter(w, h))
 	content := renderFillHeight(contentStyle, w, &h, model.View(areaSize(contentStyle, w, &h)))
 	return lipgloss.JoinVertical(lipgloss.Left, header, content, footer)
 }

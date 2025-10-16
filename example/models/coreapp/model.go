@@ -116,7 +116,7 @@ func (m Model) View(w, h int) string {
 }
 
 // GetViewHeader returns the model's header view string.
-func (m Model) GetViewHeader() string {
+func (m Model) GetViewHeader(w, h int) string {
 	return fmt.Sprintf("%v %v / model: %v", app.ProgramName, app.ProgramVersion, m.ID)
 }
 
