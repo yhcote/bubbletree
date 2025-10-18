@@ -25,9 +25,11 @@ type Themer interface {
 	GetErrorStyle() lipgloss.Style  // For error messages
 
 	// Render helpers - convenience methods
-	RenderText(string) string
-	RenderHeader(string) string
-	RenderError(string) string
+	RenderNormalText(string) string
+	RenderHeaderText(string) string
+	RenderErrorText(string) string
+	RenderPrimaryText(string) string
+	RenderSecondaryText(string) string
 }
 
 // OptionalStyleProvider is an optional interface for themes that provide

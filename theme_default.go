@@ -39,6 +39,12 @@ func (t *minimalTheme) GetHeaderStyle() lipgloss.Style { return t.headerStyle }
 func (t *minimalTheme) GetErrorStyle() lipgloss.Style  { return t.errorStyle }
 
 // Render helpers
-func (t *minimalTheme) RenderText(s string) string   { return t.baseStyle.Render(s) }
-func (t *minimalTheme) RenderHeader(s string) string { return t.headerStyle.Render(s) }
-func (t *minimalTheme) RenderError(s string) string  { return t.errorStyle.Render(s) }
+func (t *minimalTheme) RenderNormalText(s string) string { return t.baseStyle.Render(s) }
+func (t *minimalTheme) RenderHeaderText(s string) string { return t.headerStyle.Render(s) }
+func (t *minimalTheme) RenderErrorText(s string) string  { return t.errorStyle.Render(s) }
+func (t *minimalTheme) RenderPrimaryText(s string) string {
+	return t.baseStyle.Foreground(t.GetPrimaryColor()).Render(s)
+}
+func (t *minimalTheme) RenderSecondaryText(s string) string {
+	return t.baseStyle.Foreground(t.GetSecondaryColor()).Render(s)
+}
