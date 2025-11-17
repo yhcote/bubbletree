@@ -30,14 +30,16 @@ var (
 )
 
 // New creates and initializes a new model ready to be used.
-func New(opts ...Option) bubbletree.BranchModel {
+func New(opts ...Option) bubbletree.AppModel {
 	ctx, cancel := context.WithCancel(context.Background())
 	m := &Model{
-		DefaultBranchModel: bubbletree.DefaultBranchModel{
-			DefaultCommonModel: bubbletree.DefaultCommonModel{
-				ID:     fmt.Sprintf("%s-%d", modelName, lastID.Add(1)),
-				Ctx:    ctx,
-				Cancel: cancel,
+		DefaultAppModel: bubbletree.DefaultAppModel{
+			DefaultBranchModel: bubbletree.DefaultBranchModel{
+				DefaultCommonModel: bubbletree.DefaultCommonModel{
+					ID:     fmt.Sprintf("%s-%d", modelName, lastID.Add(1)),
+					Ctx:    ctx,
+					Cancel: cancel,
+				},
 			},
 		},
 	}
@@ -55,8 +57,8 @@ func New(opts ...Option) bubbletree.BranchModel {
 
 // Model is the definition of the coreapp model.
 type Model struct {
-	// Include fields and default methods of bubbletree.DefaultBranchModel.
-	bubbletree.DefaultBranchModel
+	// Include fields and default methods of bubbletree.DefaultAppModel.
+	bubbletree.DefaultAppModel
 }
 
 // Init sends a kick-off tea command when needed.
@@ -96,7 +98,7 @@ func (m Model) Update(msg tea.Msg) (bubbletree.BranchModel, tea.Cmd) {
 	}
 
 	// Run the default message handlers from bubbletree.
-	branchModel, cmd := m.DefaultBranchModel.Update(msg)
+	branchModel, cmd := m.DefaultAppModel.Update(msg)
 	if m.DefaultBranchModel, ok = branchModel.(bubbletree.DefaultBranchModel); !ok {
 		panic("DefaultBranchModel.Update didn't returned 'branchModel' as expected 'bubbletree.DefaultBranchModel' type")
 	}
@@ -127,7 +129,7 @@ type Option func(*Model)
 
 func WithLogger(logger *slog.Logger) Option {
 	return func(m *Model) {
-		m.Logger = logger
+		m.OptLogger = logger
 	}
 }
 
