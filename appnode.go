@@ -151,5 +151,8 @@ func (m DefaultAppModel) AppView(quitting bool, err error) string {
 
 // QuittingView is the default implementation of the AppModel interface.
 func (m DefaultAppModel) QuittingView(err error) string {
-	return ""
+	if err != nil {
+		return "Quitting with error: " + err.Error()
+	}
+	return "Quitting..."
 }
