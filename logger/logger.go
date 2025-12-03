@@ -32,6 +32,12 @@ func SetLoggerLevel(debug bool) *slog.Logger {
 	return defaultLogger
 }
 
+// SetCallerOffset allows the user of the logger to set the call stack depth
+// on the fly. This helps when logging with utility wrapper functions.
+func SetCallerOffset(offset int) {
+	handler.SetCallerOffset(offset)
+}
+
 // GetLoggerOutputName returns the current logger's output file name.
 func GetLoggerOutputName() string {
 	return output.Name()
@@ -66,7 +72,7 @@ func init() {
 }
 
 // loggerWithFile creates a new slog interfaced logger with a charm logger
-// handler. The logger writes logs to file: /var/tmp/mseries-<pid>.log.
+// handler. The logger writes logs to file: /var/tmp/<binfile>-<pid>.log.
 func loggerWithFile(filename string, o charmlog.Options) *slog.Logger {
 	var err error
 	output, err = os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o666)
