@@ -32,12 +32,6 @@ func SetLoggerLevel(debug bool) *slog.Logger {
 	return defaultLogger
 }
 
-// SetCallerOffset allows the user of the logger to set the call stack depth
-// on the fly. This helps when logging with utility wrapper functions.
-func SetCallerOffset(offset int) {
-	handler.SetCallerOffset(offset)
-}
-
 // GetLoggerOutputName returns the current logger's output file name.
 func GetLoggerOutputName() string {
 	return output.Name()

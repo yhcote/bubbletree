@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/viper"
 
 	tea "github.com/charmbracelet/bubbletea"
+	charmlog "github.com/charmbracelet/log"
 )
 
 // CommonModel is an interface defining the routine requirements for each
@@ -199,7 +200,12 @@ func (m DefaultCommonModel) GetTheme() Themer {
 
 // LogStateChange sends a standardized log entry after a model state change.
 func (m DefaultCommonModel) LogStateChange(msg any) {
-	m.Logger.Info("Model Update Notification",
+	handler, ok := m.Logger.Handler().(*charmlog.Logger)
+	if !ok {
+		panic("logger's handler concrete type is not *charmlog.Logger")
+	}
+	handler.Helper()
+	handler.Info("Model State Change",
 		"ModelID", m.GetModelID(),
 		"NewState", m.State,
 		"OnMsg", fmt.Sprintf("%T", msg))
@@ -207,7 +213,12 @@ func (m DefaultCommonModel) LogStateChange(msg any) {
 
 // LogAction sends a standardized log entry after a new queued tea.Cmd.
 func (m DefaultCommonModel) LogAction(msg any, action string) {
-	m.Logger.Info("Model Update Notification",
+	handler, ok := m.Logger.Handler().(*charmlog.Logger)
+	if !ok {
+		panic("logger's handler concrete type is not *charmlog.Logger")
+	}
+	handler.Helper()
+	handler.Info("Model Action",
 		"ModelID", m.GetModelID(),
 		"Action", action,
 		"OnMsg", fmt.Sprintf("%T", msg))
@@ -216,7 +227,12 @@ func (m DefaultCommonModel) LogAction(msg any, action string) {
 // LogPropertyChange sends a standardized log entry after a model property
 // change.
 func (m DefaultCommonModel) LogPropertyChange(msg any, old, new Properties) {
-	m.Logger.Info("Model Update Notification",
+	handler, ok := m.Logger.Handler().(*charmlog.Logger)
+	if !ok {
+		panic("logger's handler concrete type is not *charmlog.Logger")
+	}
+	handler.Helper()
+	handler.Info("Model Property Change",
 		"ModelID", m.GetModelID(),
 		"Properties", fmt.Sprintf("%v -> %v", old, new),
 		"OnMsg", fmt.Sprintf("%T", msg))
@@ -224,7 +240,12 @@ func (m DefaultCommonModel) LogPropertyChange(msg any, old, new Properties) {
 
 // LogNotice sends a standardized log entry of a notification.
 func (m DefaultCommonModel) LogNotice(msg any, notice string) {
-	m.Logger.Info("Model Update Notification",
+	handler, ok := m.Logger.Handler().(*charmlog.Logger)
+	if !ok {
+		panic("logger's handler concrete type is not *charmlog.Logger")
+	}
+	handler.Helper()
+	handler.Info("Model Notification",
 		"ModelID", m.GetModelID(),
 		"Notice", notice,
 		"OnMsg", fmt.Sprintf("%T", msg))
