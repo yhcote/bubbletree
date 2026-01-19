@@ -71,10 +71,9 @@ func Run(opts ...bubbletree.AppOption) error {
 
 	// Create and link all descendant models used in the application.
 	m.Models = new(sync.Map)
-	var model bubbletree.CommonModel
 
 	// Add the Configurator Model.
-	model = configurator.New(
+	model := configurator.New(
 		configurator.WithLogger(m.Logger),
 		configurator.WithViper(m.Viper),
 		configurator.WithTheme(m.Theme),

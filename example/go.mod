@@ -2,6 +2,8 @@ module example
 
 go 1.24.2
 
+replace github.com/yhcote/bubbletree => ../
+
 require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/huh v0.8.0
