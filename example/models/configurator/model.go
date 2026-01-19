@@ -14,7 +14,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/viper"
 	"github.com/yhcote/bubbletree"
 )
@@ -45,13 +44,11 @@ func New(opts ...Option) bubbletree.LeafModel {
 		opt(m)
 	}
 
-	m.form = newForm(m.Viper)
-
 	m.Logger.Info("New model created", "ModelID", m.ID)
 	return m
 }
 
-// Model is the definition of the configurator model.
+// Model is the global top-level definition of the current model.
 type Model struct {
 	// Include fields and default methods of bubbletree.DefaultLeafModel.
 	bubbletree.DefaultLeafModel
@@ -66,14 +63,6 @@ type Model struct {
 	formCompleted bool
 }
 
-// Init sends a kick-off tea command when needed.
-func (m Model) Init() tea.Cmd {
-	if m.form == nil {
-		return bubbletree.ErrCmd(errors.New("m.form is nil, an initialization error occured"))
-	}
-	return nil
-}
-
 // Update is responsible for accepting a tea message passed down from the
 // parent model and update the model data when appropriate.
 func (m Model) Update(msg tea.Msg) (bubbletree.LeafModel, tea.Cmd) {
@@ -86,37 +75,35 @@ func (m Model) Update(msg tea.Msg) (bubbletree.LeafModel, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	// When focus requested, activate the configurator.
-	case bubbletree.SetFocusMsg:
-		if msg.IsRecipient(m.GetModelID()) {
-			if !m.IsFocused() {
-				if m.form == nil {
-					// `Huh` form failed to initialize, wait for ErrMsg to come down.
-					return m, nil
-				}
-				m.State = bubbletree.ActiveState
-				m.LogStateChange(msg)
-
-				cmds = append(cmds, getConfigCmd(m.Viper, m.reconf))
-				m.LogAction(msg, "Requesting configuration")
-			}
-		}
-
 	// The configuration file could not be found, read from user input form.
 	case ConfigMissingMsg:
-		if m.IsActive() {
-			cmds = append(cmds, m.form.Init())
-			m.LogAction(msg, "Requesting config form initialization")
+		if m.IsInactive() {
+			m.State = bubbletree.ActiveState
+			m.LogStateChange(msg)
 		}
+
+		m.formCompleted = false
+		m.form = newForm(m.Viper)
+		if m.form == nil {
+			cmds = append(cmds, bubbletree.ErrCmd(errors.New("m.form is nil, an initialization error occured")))
+			break
+		}
+
+		cmds = append(cmds, m.form.Init())
+		m.LogAction(msg, "Requesting config form initialization")
 
 	// When the system is configured, call shutdown, we're done.
 	case ConfigReadyMsg:
 		if m.IsActive() {
 			m.formCompleted = true
 			m.LogNotice(msg, "Form completed")
+		}
 
-			cmds = append(cmds, bubbletree.ShutDownCmd([]string{m.GetModelID()}))
-			m.LogAction(msg, "Requesting model shutdown")
+	// When a configuration session is cancelled.
+	case ConfigCancelMsg:
+		if m.IsActive() {
+			m.formCompleted = true
+			m.LogNotice(msg, "Form cancelled")
 		}
 	}
 
@@ -128,7 +115,7 @@ func (m Model) Update(msg tea.Msg) (bubbletree.LeafModel, tea.Cmd) {
 	cmds = append(cmds, cmd)
 
 	// Run Huh Forms until we're done capturing config.
-	if !m.formCompleted && m.IsActive() && m.IsFocused() {
+	if m.form != nil && !m.formCompleted && m.IsActive() {
 		model, cmd := m.updateForm(msg)
 		cmds = append(cmds, cmd)
 		return model, tea.Batch(cmds...)
@@ -141,19 +128,24 @@ func (m Model) Update(msg tea.Msg) (bubbletree.LeafModel, tea.Cmd) {
 // the current state of the model data. The rendered string is passed back up
 // to the root model for final window composition.
 func (m Model) View(w, h int) string {
-	if m.IsFocused() && m.IsActive() {
-		m.form.WithWidth(w - 2)
-		return viewStyle.Render(strings.TrimSuffix(m.form.View(), "\n\n"))
+	if m.IsActive() {
+		if m.form != nil && !m.formCompleted {
+			m.form.WithWidth(w - 6) // tab + card + form margins.
+			formView := strings.TrimSuffix(m.form.View(), "\n\n")
+
+			if optProvider, ok := m.Theme.(bubbletree.OptionalStyleProvider); ok {
+				return optProvider.GetCardStyle().Render(formView)
+			}
+			return m.Theme.GetBaseStyle().Render(formView)
+		}
+		return m.Theme.RenderNormalText("Settings Saved!")
 	}
 	return ""
 }
 
-// The general style of the finished view, before returning uptree.
-var viewStyle = lipgloss.NewStyle().Margin(1)
-
 // GetViewHeader returns the model's header view string.
 func (m Model) GetViewHeader(w, h int) string {
-	return "Acquiring System Configuration"
+	return m.Theme.RenderNormalText("Acquiring System Configuration")
 }
 
 // GetViewFooter returns the model's footer view string.
@@ -185,6 +177,12 @@ func WithLogger(logger *slog.Logger) Option {
 func WithViper(viper *viper.Viper) Option {
 	return func(m *Model) {
 		m.Viper = viper
+	}
+}
+
+func WithTheme(theme bubbletree.Themer) Option {
+	return func(m *Model) {
+		m.Theme = theme
 	}
 }
 

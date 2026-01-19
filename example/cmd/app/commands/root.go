@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 
 	"example/internal/app"
-	"example/models/root"
+	"example/models/coreapp"
+	"example/ui/themes"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -52,26 +52,21 @@ manual page.`,
 		fmt.Printf("Starting %v version %v\n - log file:\t\t%v\n - config file:\t\t%v\n\n",
 			app.ProgramName, app.ProgramVersion, logger.GetLoggerOutputName(), configViper.ConfigFileUsed())
 
-		// Initialize App's base (root) model
-		// Initialize App's base (root) model
-		options := []root.Option{
-			root.WithLogger(logger.Log()),
-			root.WithConfigViper(configViper),
-			root.WithSpewConfigState(&spew.ConfigState{MaxDepth: 1}),
-			root.WithReconfigure(configForce),
+		// Initialize App's base (coreapp) model
+		options := []bubbletree.AppOption{
+			bubbletree.WithProgname(app.ProgramName),
+			bubbletree.WithProgver(app.ProgramVersion),
+			bubbletree.WithConfigViper(configViper),
+			bubbletree.WithReconfigure(configForce),
+			bubbletree.WithSpewConfigState(&spew.ConfigState{MaxDepth: 1}),
+			bubbletree.WithTheme(themes.Default()),
 		}
-		m, err := root.New(options...)
+
+		// Run the bubble tree program via the initialized coreapp.
+		err = coreapp.Run(options...)
 		if err != nil {
 			cmd.SilenceUsage = true
 			return err
-		}
-		// Run the bubble tea program with the new base model.
-		if m, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {
-			cmd.SilenceUsage = true
-			return err
-		} else if m.(bubbletree.RootModel).LastError() != nil {
-			cmd.SilenceUsage = true
-			return m.(bubbletree.RootModel).LastError()
 		}
 		return nil
 	},
@@ -105,7 +100,7 @@ func initConfigViper() {
 	configViper.SetConfigFile(configFile)
 
 	// Open an existing config or create a new one.
-	openCreateJsonFile(configFile)
+	openCreateJsonFile(configFile, configForce)
 
 	// Read in environment variables that match.
 	configViper.AutomaticEnv()
@@ -124,8 +119,8 @@ func readConfigFile(vpr *viper.Viper) {
 	}
 }
 
-func openCreateJsonFile(filename string) {
-	if _, err := os.Stat(filename); err != nil {
+func openCreateJsonFile(filename string, force bool) {
+	if _, err := os.Stat(filename); err != nil || force {
 		err := os.MkdirAll(filepath.Dir(filename), 0755)
 		if err != nil {
 			logger.Log().Error("Could not create file path", "path", filepath.Dir(filename), "error", err)

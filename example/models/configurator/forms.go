@@ -108,15 +108,15 @@ func (m Model) updateForm(msg tea.Msg) (bubbletree.LeafModel, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// incompleteConfig returns whether the current config (new or read from
-// file), is missing application required values.
-func isComplete(vpr *viper.Viper) (config app.Config, complete bool) {
-	config, err := app.ViperToLocalConfig(vpr)
+// isComplete returns whether the current config (new or read from
+// file), is not missing application required values.
+func isComplete(vpr *viper.Viper) (config app.Config, complete bool, err error) {
+	config, err = app.ViperToLocalConfig(vpr)
 	if err != nil {
 		return
 	}
 	if config.Placeholder == "" {
 		return
 	}
-	return config, true
+	return config, true, nil
 }

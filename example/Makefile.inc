@@ -35,22 +35,24 @@ version   ?= \
 		) | sed -e "s/^v//;s/-/_/g;s/_/-/;s/_/./g"\
 	)
 
-all:: info devel test lint
+all:: devel test lint
 
-clean::
+clean:: info
 	@printf '\e[38;5;202m  CLEAN\e[m\n'
 	$(V)rm -rf $(programs) $(testout) $(project).info *.$(version) *-debug.$(version)
 
 
-dep-upgrade::
+dep-upgrade:: info
 	@printf '\e[38;5;202m  GET\e[m           %s\n' "$(project)"
 	$(V)$(GO) get -u ./...
 	@printf '\e[38;5;202m  TIDY\e[m          %s\n' "$(project)"
 	$(V)$(GO) mod tidy
+ifneq ($(shell $(GO) env GOWORK),)
 	@printf '\e[38;5;202m  SYNC\e[m          %s\n' "$(project)"
 	$(V)$(GO) work sync
+endif
 
-devel::
+devel:: info
 	$(V)$(foreach p,$(programs), \
 		printf '\e[38;5;202m  BUILD\e[m         %s\n' "$(p) -> $(p).$(version)" && \
 		GOOS=$(os) GOARCH=$(arch) $(GO) build -ldflags "-s -X $(module)/internal/$(p).ProgramVersion=$(version)" -o $(p).$(version) ./cmd/$(p); \
@@ -67,7 +69,7 @@ info:
 	@printf '\e[38;5;23m  GOWORK\e[m        `%s`\n' "$(shell $(GO) env GOWORK)"
 	@printf '\n'
 
-install::
+install:: info
 	$(V)sudo install -d $(PREFIX)/bin
 	$(V)$(foreach p,$(programs), \
 		printf '\e[38;5;202m  INSTALL\e[m       %s\n' "$(p) -> $(PREFIX)/bin" && \
@@ -100,7 +102,7 @@ scrub::
 
 test::
 	@printf '\e[38;5;202m  TEST\e[m          %s\n' "$(project)"
-	$(V)GOOS=$(os) GOARCH=$(arch) $(GO) test -ldflags "-s -X $(module)/internal/$(p).ProgramVersion=$(version)" ./... >$(testout) || \
+	$(V)GOOS=$(os) GOARCH=$(arch) $(GO) test -v -ldflags "-s -X $(module)/internal/$(p).ProgramVersion=$(version)" ./... >$(testout) || \
 		(grep -v -e "^\?" -e "^ok" -e "^FAIL" $(testout) && exit 2)
 
 version::
